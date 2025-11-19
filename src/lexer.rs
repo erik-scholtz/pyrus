@@ -158,7 +158,14 @@ pub fn lex(source: &str) -> TokenStream {
             while i < len && is_ident_continue(bytes[i]) {
                 i += 1;
             }
-            out.push(TokenKind::Identifier, start, i, line, col);
+            // check for let and const
+            let ident_str = &source[start..i];
+            let kind = make_keyword_lookup_table()
+                .get(ident_str)
+                .copied()
+                .unwrap_or(TokenKind::Identifier);
+            out.push(kind, start, i, line, col);
+            
             col += (i - start) as u32;
             continue;
         }
@@ -227,6 +234,7 @@ pub fn lex(source: &str) -> TokenStream {
 
     // --- EOF ---
     out.push(TokenKind::Eof, len, len, line, col);
-    out
+    
+    return out;
 }
 

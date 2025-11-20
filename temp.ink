@@ -8,13 +8,20 @@ template {
     // Simple formula
     let total_price = $price * quantity$ // this is not a default value and needs to be defined with "let" or "const"
 
-    intro_section() {
-        return "introduction, the total price is {total_price}";
+    func intro_section() {
+        return "introduction, the total price is {total_price}"
     }
 }
 
 document {
-    intro_section(ClassName=intro); // section has default attributes that can be called
+    intro_section(ClassName=intro) // section has default attributes that can be called
+    text {
+        this is also text that can be parsed by the compiler
+    }
+    list {
+        - this is a list
+        - defined by its dashes (and the name "list")
+    }
 }
 
 style {

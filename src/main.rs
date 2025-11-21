@@ -3,6 +3,8 @@ use std::ffi::OsString;
 use std::fs;
 
 mod lexer;
+mod parser;
+mod ast;
 
 fn main() {
     let args: Vec<OsString> = env::args_os().collect();
@@ -19,8 +21,10 @@ fn main() {
 
     let data = fs::read_to_string("temp.ink").expect("Should be able to read hosts file");
 
-    let tokens = lexer::lex(&data);
+    // let tokens = lexer::lex(&data);
+    // println!("{:?}", &tokens);
 
-    println!("{:?}", &tokens)
+    let ast = parser::parse(&data);
+    println!("{:#?}", ast);
 
 }

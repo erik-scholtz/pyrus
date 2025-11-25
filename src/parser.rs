@@ -1,6 +1,6 @@
 use core::panic;
 
-use crate::ast::{Ast, Expression, TemplateStatement};
+use crate::ast::{Ast, Expression, Statement};
 use crate::lexer::{TokenKind, TokenStream, lex};
 
 pub fn parse(source: &str) -> Ast {
@@ -37,9 +37,8 @@ impl Parser {
                     });
                 }
                 TokenKind::Document => {
-                    let document_block = Vec::new();
-                    self.advance();
-                    self.skip_optional_block();
+                    let mut document_block = Vec::new();
+                    document_block = self.parse_document_block();
                     document = Some(DocumentBlock {
                         statements: document_block,
                     });
@@ -174,7 +173,6 @@ impl Parser {
                 right: Box::new(right),
             };
         }
-
         left
     }
 
@@ -220,22 +218,54 @@ impl Parser {
         }
     }
 
-    fn parse_statement(&mut self) -> TemplateStatement {
+    fn parse_statement(&mut self) -> Statement {
         println!("Parsing statement at token: {:?}", self.current_token_kind());
         match self.current_token_kind() {
             TokenKind::Identifier => {
-
-                let expr = self.parse_expression();
-                TemplateStatement::Assignment {
-                    name: "defaults".to_string(),
-                    value: expr,
+                if self.toks.kinds.get(self.idx + 1) == Some(&TokenKind::LeftParen) {
+                    // function call
+                    let func_name = self.current_text();
+                    self.advance(); // consume function name
+                    self.expect(TokenKind::LeftParen);
+                    let mut args: Vec<Expression> = Vec::new();
+                    while self.current_token_kind() != TokenKind::RightParen {
+                        let expr = self.parse_expression();
+                        args.push(expr);
+                        if self.current_token_kind() == TokenKind::Comma {
+                            self.advance(); // consume comma
+                        } else {
+                            break;
+                        }
+                    }
+                    self.expect(TokenKind::RightParen);
+                    return Statement::FunctionCall {
+                        name: func_name,
+                        args,
+                    };
+                } 
+                else if self.toks.kinds.get(self.idx + 1) == Some(&TokenKind::LeftBrace) {
+                    // default block like "<h1>some text</h1>" works but in c synax "text { some text }"
+                    let name = self.current_text();
+                    self.advance(); // consume name
+                    self.expect(TokenKind::LeftBrace);
+                    let content = self.parse_document_default();
+                    Statement::Assignment {
+                        name,
+                        value: content,
+                    }
+                } else {
+                    let expr = self.parse_expression();
+                    Statement::Assignment {
+                        name: "defaults".to_string(),
+                        value: expr,
+                    }
                 }
             }
             TokenKind::Let => {
                 self.advance();
                 // TODO handle let differently if needed
                 let expr = self.parse_expression();
-                TemplateStatement::Assignment {
+                Statement::Assignment {
                     name: "variable".to_string(),
                     value: expr,
                 }
@@ -244,7 +274,7 @@ impl Parser {
                 self.advance();
                 // TODO handle const differently if needed
                 let expr = self.parse_expression();
-                TemplateStatement::Assignment {
+                Statement::Assignment {
                     name: "constant".to_string(),
                     value: expr,
                 }
@@ -254,10 +284,10 @@ impl Parser {
                 if self.current_token_kind() == TokenKind::StringLiteral {
                     let value = self.current_text();
                     self.advance();
-                    return TemplateStatement::Return(Expression::Literal(value));
+                    return Statement::Return(Expression::Literal(value));
                 }
                 let expr: Expression = self.parse_expression();
-                TemplateStatement::Return(expr)
+                Statement::Return(expr)
             }
             // TODO handle if statements
             // TODO handle for loops
@@ -271,10 +301,11 @@ impl Parser {
         }
     }
 
-    fn parse_func(&mut self) -> TemplateStatement {
+    fn parse_func(&mut self) -> Statement {
         self.expect(TokenKind::Func);
-
-        let name = self.expect(TokenKind::Identifier).to_string();
+        
+        self.expect(TokenKind::Identifier);
+        let name = self.toks.source[self.toks.ranges[self.idx - 1].clone()].to_string();
 
         self.expect(TokenKind::LeftParen);
         let params = self.parse_params();
@@ -282,7 +313,7 @@ impl Parser {
         self.expect(TokenKind::LeftBrace);
         let body = self.parse_block();
 
-        TemplateStatement::Function { name, params, body }
+        Statement::Function { name, params, body }
     }
 
     fn parse_params(&mut self) -> Vec<crate::ast::FunctionParam> {
@@ -296,8 +327,8 @@ impl Parser {
         params
     }
 
-    fn parse_block(&mut self) -> Vec<TemplateStatement> {
-        let mut statements: Vec<TemplateStatement> = Vec::new();
+    fn parse_block(&mut self) -> Vec<Statement> {
+        let mut statements: Vec<Statement> = Vec::new();
         while self.idx < self.toks.kinds.len() {
             match self.current_token_kind() {
                 TokenKind::RightBrace => {
@@ -318,10 +349,10 @@ impl Parser {
         statements
     }
 
-    fn parse_template_block(&mut self) -> Vec<TemplateStatement> {
+    fn parse_template_block(&mut self) -> Vec<Statement> {
         self.expect(TokenKind::Template);
         self.expect(TokenKind::LeftBrace);
-        let mut statements: Vec<TemplateStatement> = Vec::new();
+        let mut statements: Vec<Statement> = Vec::new();
         while self.idx < self.toks.kinds.len() {
             match self.current_token_kind() {
                 TokenKind::RightBrace => {
@@ -331,6 +362,54 @@ impl Parser {
                 TokenKind::Func => {
                     let statement = self.parse_func();
                     statements.push(statement);
+                }
+                TokenKind::Eof => break,
+                _ => {
+                    let statement = self.parse_statement();
+                    statements.push(statement);
+                }
+            }
+        }
+        statements
+    }
+
+    // TODO handle nested structures properly
+    // TODO handle text formatting properly
+    // TODO handle markdown formatting properly (bold, italics, etc.)
+    // TODO handle code snippets properly
+    fn parse_document_default(&mut self) -> Expression {
+        let mut content = String::new();
+        while self.idx < self.toks.kinds.len() {
+            match self.current_token_kind() {
+                TokenKind::RightBrace => {
+                    self.advance(); // exit block
+                    break;
+                }
+                TokenKind::Eof => panic!(
+                    "Parse error: unexpected end of file while parsing document default at {}:{}",
+                    self.current_token_line(),
+                    self.current_token_col()
+                ),
+                _ => { 
+
+                    content.push_str(&self.current_text());
+                    content.push(' ');
+                    self.advance();
+                }
+            }
+        }
+        Expression::Literal(content)
+    }
+
+    fn parse_document_block(&mut self) -> Vec<Statement> {
+        self.expect(TokenKind::Document);
+        self.expect(TokenKind::LeftBrace);
+        let mut statements: Vec<Statement> = Vec::new();
+        while self.idx < self.toks.kinds.len() {
+            match self.current_token_kind() {
+                TokenKind::RightBrace => {
+                    self.advance(); // exit block
+                    break;
                 }
                 TokenKind::Eof => break,
                 _ => {

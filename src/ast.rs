@@ -35,11 +35,11 @@ pub struct FunctionParam {
 
 #[derive(Debug)]
 pub struct TemplateBlock {
-    pub statements: Vec<TemplateStatement>,
+    pub statements: Vec<Statement>,
 }
 
 #[derive(Debug)]
-pub enum TemplateStatement {
+pub enum Statement {
     /// everything between `{` and `}` that isn't a function definition or a return
     Assignment {
         name: String,
@@ -47,24 +47,28 @@ pub enum TemplateStatement {
     },
     If {
         condition: Expression,
-        body: Vec<TemplateStatement>,
-        else_body: Option<Vec<TemplateStatement>>,
+        body: Vec<Statement>,
+        else_body: Option<Vec<Statement>>,
     },
     While {
         condition: Expression,
-        body: Vec<TemplateStatement>,
+        body: Vec<Statement>,
     },
     For {
         iterator: String,
         iterable: Expression,
-        body: Vec<TemplateStatement>,
+        body: Vec<Statement>,
     },
     Return(Expression),
     /// name(args) { body... }
     Function {
         name: String,
         params: Vec<FunctionParam>, // probably empty for now
-        body: Vec<TemplateStatement>,
+        body: Vec<Statement>,
+    },
+    FunctionCall {
+        name: String,
+        args: Vec<Expression>,
     },
 }
 
@@ -74,14 +78,14 @@ pub enum TemplateStatement {
 
 #[derive(Debug)] 
 pub struct DocumentBlock {
-    pub statements: Vec<TemplateStatement>, // TODO document statements
+    pub statements: Vec<Statement>, // TODO document statements
 }
 
 
 
 #[derive(Debug)] 
 pub struct StyleBlock {
-    pub statements: Vec<TemplateStatement>, // TODO style statements
+    pub statements: Vec<Statement>, // TODO style statements
 }
 
 #[derive(Debug)]

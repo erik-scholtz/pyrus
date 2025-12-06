@@ -1,8 +1,6 @@
 use std::fs;
 
-mod lexer {
-	include!("../src/lexer.rs");
-}
+use pyrus::lexer;
 
 fn lexeme(ts: &lexer::TokenStream, idx: usize) -> &str {
 	let r = &ts.ranges[idx];

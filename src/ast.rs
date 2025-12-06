@@ -50,10 +50,10 @@ pub struct TemplateBlock {
 pub enum Statement {
     /// everything between `{` and `}` that isn't a function definition or a return
     DefaultSet {
-        name: String,
+        key: String,
         value: Expression,
     },
-    VarAssign {
+    VarAssign { // value should never be an expression, should always be explicit
         name: String,
         value: Expression,
     },
@@ -79,12 +79,12 @@ pub enum Statement {
     /// name(args) { body... }
     FunctionDecl {
         name: String,
-        params: Vec<FunctionParam>, // probably empty for now
+        args: Vec<FunctionParam>, // probably empty for now
         body: Vec<Statement>,
     },
     FunctionCall {
         name: String,
-        params: Vec<Statement>,
+        args: Vec<Statement>,
         attributes: Vec<Statement>,
     },
     KeyValue {

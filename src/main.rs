@@ -2,9 +2,9 @@ use std::env;
 use std::ffi::OsString;
 use std::fs;
 
-mod lexer;
-mod parser;
-mod ast;
+use pyrus::parser;
+use pyrus::lexer;
+use pyrus::ast;
 
 fn main() {
     let args: Vec<OsString> = env::args_os().collect();

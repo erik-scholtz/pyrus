@@ -231,7 +231,7 @@ impl Parser {
                     let func_name = self.current_text();
                     self.advance(); // consume function name
                     self.expect(TokenKind::LeftParen);
-                    let mut params: Vec<Statement> = Vec::new();
+                    let mut args: Vec<Statement> = Vec::new();
                     let mut attributes: Vec<Statement> = Vec::new();
                     while self.current_token_kind() != TokenKind::RightParen { // TODO differentiate args from defaults like classname
                         let name = self.current_text();
@@ -246,7 +246,7 @@ impl Parser {
                             continue;
                         }
                         else if self.current_token_kind() == TokenKind::Comma {
-                            params.push(Statement::KeyValue { // TODO not sure if this is the right way to do this
+                            args.push(Statement::KeyValue { // TODO not sure if this is the right way to do this
                                 key: name,
                                 value: Expression::StringLiteral("argument".to_string()),
                             });
@@ -263,7 +263,7 @@ impl Parser {
                     self.expect(TokenKind::RightParen);
                     return Statement::FunctionCall {
                         name: func_name,
-                        params: params,
+                        args: args,
                         attributes: attributes,
                     };
                 } else if self.toks.kinds.get(self.idx + 1) == Some(&TokenKind::LeftBrace) {
@@ -276,11 +276,13 @@ impl Parser {
                     let varname = self.current_text();
                     self.advance();
                     self.expect(TokenKind::Equals);
-                    let expr = self.parse_expression();
+                    
+                    let expr = Expression::StringLiteral(self.current_text()); // this should always be true
+                    self.advance();
                     // print current token for debugging
                     println!("Parsed expression in statement: {:?}", expr);
                     Statement::DefaultSet {
-                        name: varname,
+                        key: varname,
                         value: expr,
                     }
                 }
@@ -338,15 +340,15 @@ impl Parser {
         let name = self.toks.source[self.toks.ranges[self.idx - 1].clone()].to_string();
 
         self.expect(TokenKind::LeftParen);
-        let params = self.parse_params();
+        let args = self.parse_args();
 
         self.expect(TokenKind::LeftBrace);
         let body = self.parse_block();
 
-        Statement::FunctionDecl{ name, params, body }
+        Statement::FunctionDecl{ name, args, body }
     }
 
-    fn parse_params(&mut self) -> Vec<crate::ast::FunctionParam> {
+    fn parse_args(&mut self) -> Vec<crate::ast::FunctionParam> {
         let mut params = Vec::new();
         while self.match_kind(TokenKind::Identifier) {
             let param_name = self.toks.source[self.toks.ranges[self.idx - 1].clone()].to_string();

@@ -4,9 +4,9 @@ use std::collections::HashMap;
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum TokenKind {
     // Single-char symbols
-    LeftParen, RightParen,
-    LeftBrace, RightBrace,
-    LeftBracket, RightBracket,
+    LeftParen, RightParen,      // ()
+    LeftBrace, RightBrace,      // {}
+    LeftBracket, RightBracket,  // []
     Comma, Dot, Semicolon, Colon,
     Plus, Minus, Star, Slash, Percent,
     Equals, Dollarsign,
@@ -34,6 +34,12 @@ pub enum TokenKind {
     Eof,
 }
 
+impl std::fmt::Display for TokenKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+ 
 fn make_keyword_lookup_table() -> HashMap<&'static str, TokenKind> {
     use TokenKind::*;
 
@@ -78,9 +84,9 @@ static SYMBOL_LOOKUP_TABLE: [Option<TokenKind>; 256] = {
     t
 };
 
-////////////////
-//// tokens ////
-////////////////
+// ------------ //
+// -- tokens -- //
+// ------------ //
 
 #[derive(Debug)]
 pub struct TokenStream {
@@ -111,9 +117,9 @@ impl TokenStream {
     }
 }
 
-///////////////
-//// lexer ////
-///////////////
+// ----------- //
+// -- lexer -- //
+// ----------- //
 
 #[inline]
 fn is_ident_start(c: u8) -> bool {

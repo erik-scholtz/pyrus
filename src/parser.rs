@@ -190,8 +190,9 @@ impl Parser {
             // TODO handle not operator
             TokenKind::StringLiteral => {
                 let value = self.current_text();
+                let trimmed = value.trim_matches('"').to_string();
                 self.advance();
-                Expression::StringLiteral(value)
+                Expression::StringLiteral(trimmed)
             }
             TokenKind::Float => {
                 let value = self.current_text(); // TODO handle number types properly
@@ -233,7 +234,7 @@ impl Parser {
                     self.expect(TokenKind::LeftParen);
                     let mut args: Vec<Statement> = Vec::new();
                     let mut attributes: Vec<Statement> = Vec::new();
-                    while self.current_token_kind() != TokenKind::RightParen { // TODO differentiate args from defaults like classname
+                    while self.current_token_kind() != TokenKind::RightParen { 
                         let name = self.current_text();
                         self.advance(); // consume arg name
                         if self.current_token_kind() == TokenKind::Equals {
@@ -253,11 +254,20 @@ impl Parser {
                             self.advance(); // consume comma
                             continue;
                         }
-
-                        if self.current_token_kind() == TokenKind::Comma {
-                            self.advance(); // consume comma
-                        } else {
+                        else if self.current_token_kind() == TokenKind::RightParen {
+                            args.push(Statement::KeyValue { // TODO not sure if this is the right way to do this
+                                key: name,
+                                value: Expression::StringLiteral("argument".to_string()),
+                            });
                             break;
+                        }
+                        else {
+                            panic!(
+                                "Parse error: unexpected token in function call arguments. Found: {:?} at {}:{}",
+                                self.current_token_kind(),
+                                self.current_token_line(),
+                                self.current_token_col()
+                            );
                         }
                     }
                     self.expect(TokenKind::RightParen);
@@ -276,8 +286,8 @@ impl Parser {
                     let varname = self.current_text();
                     self.advance();
                     self.expect(TokenKind::Equals);
-                    
-                    let expr = Expression::StringLiteral(self.current_text()); // this should always be true
+                    let trimmed = self.current_text().trim_matches('"').to_string();
+                    let expr = Expression::StringLiteral(trimmed); // this should always be true
                     self.advance();
                     // print current token for debugging
                     println!("Parsed expression in statement: {:?}", expr);
@@ -316,7 +326,8 @@ impl Parser {
                 if self.current_token_kind() == TokenKind::StringLiteral {
                     let value = self.current_text();
                     self.advance();
-                    return Statement::Return(Expression::StringLiteral(value));
+                    let trimmed = value.trim_matches('"').to_string();
+                    return Statement::Return(Expression::StringLiteral(trimmed));
                 }
                 let expr: Expression = self.parse_expression();
                 Statement::Return(expr)

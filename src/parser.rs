@@ -30,15 +30,13 @@ impl Parser {
         while self.idx < self.toks.kinds.len() {
             match self.current_token_kind() {
                 TokenKind::Template => {
-                    let mut template_block = Vec::new();
-                    template_block = self.parse_template_block();
+                    let template_block = self.parse_template_block();
                     template = Some(TemplateBlock {
                         statements: template_block,
                     });
                 }
                 TokenKind::Document => {
-                    let mut document_block = Vec::new();
-                    document_block = self.parse_document_block();
+                    let document_block = self.parse_document_block();
                     document = Some(DocumentBlock {
                         statements: document_block,
                     });
@@ -153,9 +151,12 @@ impl Parser {
                 self.current_token_col()
             ),
         };
-        
-        while let TokenKind::Plus | TokenKind::Minus | TokenKind::Star | TokenKind::Slash | TokenKind::Equals =
-            self.current_token_kind()
+
+        while let TokenKind::Plus
+        | TokenKind::Minus
+        | TokenKind::Star
+        | TokenKind::Slash
+        | TokenKind::Equals = self.current_token_kind()
         {
             let operator = match self.current_token_kind() {
                 TokenKind::Plus => crate::ast::BinaryOp::Add,
@@ -190,17 +191,17 @@ impl Parser {
             TokenKind::StringLiteral => {
                 let value = self.current_text();
                 self.advance();
-                Expression::Literal(value)
+                Expression::StringLiteral(value)
             }
             TokenKind::Float => {
                 let value = self.current_text(); // TODO handle number types properly
                 self.advance();
-                Expression::Literal(value)
+                Expression::StringLiteral(value)
             }
             TokenKind::Int => {
                 let value = self.current_text(); // TODO handle number types properly
                 self.advance();
-                Expression::Literal(value)
+                Expression::StringLiteral(value)
             }
             TokenKind::Dollarsign => {
                 self.advance(); // first $
@@ -219,7 +220,10 @@ impl Parser {
     }
 
     fn parse_statement(&mut self) -> Statement {
-        println!("Parsing statement at token: {:?}", self.current_token_kind());
+        println!(
+            "Parsing statement at token: {:?}",
+            self.current_token_kind()
+        );
         match self.current_token_kind() {
             TokenKind::Identifier => {
                 if self.toks.kinds.get(self.idx + 1) == Some(&TokenKind::LeftParen) {
@@ -227,10 +231,29 @@ impl Parser {
                     let func_name = self.current_text();
                     self.advance(); // consume function name
                     self.expect(TokenKind::LeftParen);
-                    let mut args: Vec<Expression> = Vec::new();
-                    while self.current_token_kind() != TokenKind::RightParen {
-                        let expr = self.parse_expression();
-                        args.push(expr);
+                    let mut params: Vec<Statement> = Vec::new();
+                    let mut attributes: Vec<Statement> = Vec::new();
+                    while self.current_token_kind() != TokenKind::RightParen { // TODO differentiate args from defaults like classname
+                        let name = self.current_text();
+                        self.advance(); // consume arg name
+                        if self.current_token_kind() == TokenKind::Equals {
+                            self.advance(); // consume equals
+                            attributes.push(Statement::KeyValue {
+                                key: name, 
+                                value: Expression::StringLiteral(self.current_text()),
+                            });
+                            self.advance(); // consume comma
+                            continue;
+                        }
+                        else if self.current_token_kind() == TokenKind::Comma {
+                            params.push(Statement::KeyValue { // TODO not sure if this is the right way to do this
+                                key: name,
+                                value: Expression::StringLiteral("argument".to_string()),
+                            });
+                            self.advance(); // consume comma
+                            continue;
+                        }
+
                         if self.current_token_kind() == TokenKind::Comma {
                             self.advance(); // consume comma
                         } else {
@@ -240,23 +263,24 @@ impl Parser {
                     self.expect(TokenKind::RightParen);
                     return Statement::FunctionCall {
                         name: func_name,
-                        args,
+                        params: params,
+                        attributes: attributes,
                     };
-                } 
-                else if self.toks.kinds.get(self.idx + 1) == Some(&TokenKind::LeftBrace) {
-                    // default block like "<h1>some text</h1>" works but in c synax "text { some text }"
-                    let name = self.current_text();
+                } else if self.toks.kinds.get(self.idx + 1) == Some(&TokenKind::LeftBrace) {
+                    // default block like "<p>some text</p>" works but in c synax "text { some text }"
                     self.advance(); // consume name
                     self.expect(TokenKind::LeftBrace);
                     let content = self.parse_document_default();
-                    Statement::Assignment {
-                        name,
-                        value: content,
-                    }
+                    Statement::Paragraph { value: content }
                 } else {
+                    let varname = self.current_text();
+                    self.advance();
+                    self.expect(TokenKind::Equals);
                     let expr = self.parse_expression();
-                    Statement::Assignment {
-                        name: "defaults".to_string(),
+                    // print current token for debugging
+                    println!("Parsed expression in statement: {:?}", expr);
+                    Statement::DefaultSet {
+                        name: varname,
                         value: expr,
                     }
                 }
@@ -264,18 +288,24 @@ impl Parser {
             TokenKind::Let => {
                 self.advance();
                 // TODO handle let differently if needed
+                let varname = self.current_text();
+                self.advance();
+                self.expect(TokenKind::Equals);
                 let expr = self.parse_expression();
-                Statement::Assignment {
-                    name: "variable".to_string(),
+                Statement::VarAssign {
+                    name: varname,
                     value: expr,
                 }
             }
             TokenKind::Const => {
                 self.advance();
                 // TODO handle const differently if needed
+                let varname = self.current_text();
+                self.advance();
+                self.expect(TokenKind::Equals);
                 let expr = self.parse_expression();
-                Statement::Assignment {
-                    name: "constant".to_string(),
+                Statement::ConstAssign {
+                    name: varname,
                     value: expr,
                 }
             }
@@ -284,7 +314,7 @@ impl Parser {
                 if self.current_token_kind() == TokenKind::StringLiteral {
                     let value = self.current_text();
                     self.advance();
-                    return Statement::Return(Expression::Literal(value));
+                    return Statement::Return(Expression::StringLiteral(value));
                 }
                 let expr: Expression = self.parse_expression();
                 Statement::Return(expr)
@@ -303,7 +333,7 @@ impl Parser {
 
     fn parse_func(&mut self) -> Statement {
         self.expect(TokenKind::Func);
-        
+
         self.expect(TokenKind::Identifier);
         let name = self.toks.source[self.toks.ranges[self.idx - 1].clone()].to_string();
 
@@ -313,7 +343,7 @@ impl Parser {
         self.expect(TokenKind::LeftBrace);
         let body = self.parse_block();
 
-        Statement::Function { name, params, body }
+        Statement::FunctionDecl{ name, params, body }
     }
 
     fn parse_params(&mut self) -> Vec<crate::ast::FunctionParam> {
@@ -390,15 +420,14 @@ impl Parser {
                     self.current_token_line(),
                     self.current_token_col()
                 ),
-                _ => { 
-
+                _ => {
                     content.push_str(&self.current_text());
                     content.push(' ');
                     self.advance();
                 }
             }
         }
-        Expression::Literal(content)
+        Expression::StringLiteral(content)
     }
 
     fn parse_document_block(&mut self) -> Vec<Statement> {

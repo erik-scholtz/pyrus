@@ -15,8 +15,10 @@ pub enum UnaryOp {
 
 #[derive(Debug)]
 pub enum Expression {
-    Literal(String), // for simplicity, all literals are strings
-    Identifier(String), // variable names
+    StringLiteral(String),
+    InterpolatedString(Vec<InterpPart>),
+    NumberLiteral(i64),
+    Identifier(String),
     Binary {
         left: Box<Expression>,
         operator: BinaryOp,
@@ -26,6 +28,12 @@ pub enum Expression {
         operator: UnaryOp,
         expression: Box<Expression>,
     },
+}
+
+#[derive(Debug)]
+enum InterpPart {
+    Text(String),
+    Expression(Expression),      // interpolated portion
 }
 
 #[derive(Debug)]
@@ -41,7 +49,15 @@ pub struct TemplateBlock {
 #[derive(Debug)]
 pub enum Statement {
     /// everything between `{` and `}` that isn't a function definition or a return
-    Assignment {
+    DefaultSet {
+        name: String,
+        value: Expression,
+    },
+    VarAssign {
+        name: String,
+        value: Expression,
+    },
+    ConstAssign {
         name: String,
         value: Expression,
     },
@@ -61,14 +77,25 @@ pub enum Statement {
     },
     Return(Expression),
     /// name(args) { body... }
-    Function {
+    FunctionDecl {
         name: String,
         params: Vec<FunctionParam>, // probably empty for now
         body: Vec<Statement>,
     },
     FunctionCall {
         name: String,
-        args: Vec<Expression>,
+        params: Vec<Statement>,
+        attributes: Vec<Statement>,
+    },
+    KeyValue {
+        key: String,
+        value: Expression,
+    },
+    Attributes {
+        attributes: Vec<Statement>,
+    },
+    Paragraph { // literally just a block of text
+        value: Expression,
     },
 }
 

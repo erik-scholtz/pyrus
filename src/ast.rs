@@ -1,4 +1,4 @@
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum BinaryOp {
     Add,
     Subtract,
@@ -7,13 +7,13 @@ pub enum BinaryOp {
     Equals,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum UnaryOp {
     Negate,
     Not,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Expression {
     StringLiteral(String),
     InterpolatedString(Vec<InterpPart>),
@@ -30,23 +30,23 @@ pub enum Expression {
     },
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum InterpPart {
     Text(String),
     Expression(Expression),      // interpolated portion
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FunctionParam {
     pub name: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TemplateBlock {
     pub statements: Vec<Statement>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Statement {
     /// everything between `{` and `}` that isn't a function definition or a return
     DefaultSet {
@@ -103,19 +103,19 @@ pub enum Statement {
 // Document Block
 
 
-#[derive(Debug)] 
+#[derive(Debug, Clone)] 
 pub struct DocumentBlock {
     pub statements: Vec<Statement>, // TODO document statements
 }
 
 
 
-#[derive(Debug)] 
+#[derive(Debug, Clone)] 
 pub struct StyleBlock {
     pub statements: Vec<Statement>, // TODO style statements
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Ast {
     pub template: Option<TemplateBlock>,
     pub document: Option<DocumentBlock>,

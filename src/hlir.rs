@@ -1,7 +1,8 @@
-use std::iter::Map;
+use std::collections::HashMap;
 
 use crate::ast::Ast;
 
+#[derive(Clone)]
 pub enum ConstValue {
     Number(f64),
     Color(String),
@@ -9,28 +10,54 @@ pub enum ConstValue {
     Bool(bool),
 }
 
+#[derive(Clone)]
 pub struct FuncDecl {
     name: String,
     params: Vec<String>,
     body: Vec<()>, // Placeholder for function body statements
 }
 
+impl FuncDecl {
+    pub fn new(name: String, params: Vec<String>, body: Vec<()>) -> Self {
+        FuncDecl { name, params, body }
+    }
+}
+
+#[derive(Clone)]
 pub struct DocumentDecl {
     title: String,
     body: Vec<()>, // Placeholder for document body elements
 }
 
+impl DocumentDecl {
+    pub fn new() -> Self {
+        DocumentDecl {
+            title: String::new(),
+            body: Vec::new(),
+        }
+    }
+}
+
+#[derive(Clone)]
 pub struct StyleDecl {
     rules: Vec<()>, // Placeholder for style rules
 }
 
+impl StyleDecl {
+    pub fn new() -> Self {
+        StyleDecl { rules: Vec::new() }
+    }
+}
+
+#[derive(Clone)]
 pub struct GlobalDecl {
     name: String,
     value: ConstValue,
 }
 
+#[derive(Clone)]
 pub struct HLIRModule {
-    defaults: Map<String, ConstValue>,
+    defaults: HashMap<String, ConstValue>,
     globals: Vec<GlobalDecl>, // top-level variables
     functions: Vec<FuncDecl>,
     document: DocumentDecl,
@@ -58,32 +85,36 @@ impl HlirInterp {
         self.fresh_temp += 1;
         temp
     }
-
     fn lower(&mut self) {
-        let hlirmodlue = {};
-        self.lowerTemplateBlock();
-        self.lowerDocumentBlock();
-        self.lowerStyleBlock();
+        let hlirmodlue = HLIRModule {
+            defaults: HashMap::new(),
+            globals: Vec::new(),
+            functions: Vec::new(),
+            document: DocumentDecl::new(),
+            stylesheet: StyleDecl::new(),
+        };
+        self.lowerTemplateBlock(&hlirmodlue);
+        self.lowerDocumentBlock(&hlirmodlue);
+        self.lowerStyleBlock(&hlirmodlue);
     }
 
-    fn lowerTemplateBlock(&mut self) {
+    fn lowerTemplateBlock(&mut self, hlirmodlue: &HLIRModule) {
         // all global, default and function declarations
-
+        // handle defaults and globals inside this function call since they are small
+        self.lowerFunctionDecl(hlirmodlue);
     }
 
-    fn lowerDocumentBlock(&mut self) {
+    fn lowerDocumentBlock(&mut self, hlirmodlue: &HLIRModule) {
         // TODO all function calls and default structure/document primatives calls
     }
 
-    fn lowerStyleBlock(&mut self) {
+    fn lowerStyleBlock(&mut self, hlirmodlue: &HLIRModule) {
         // TODO all style calls
     }
 
-    fn lowerFunctionDecl(&mut self) {
+    fn lowerFunctionDecl(&mut self, hlirmodlue: &HLIRModule) {
 
     }
 
-    fn lowerExpressionToTemp(&mut self) {
-
-    }
+    fn lowerExpressionToTemp(&mut self) {}
 }

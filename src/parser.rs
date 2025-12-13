@@ -234,34 +234,33 @@ impl Parser {
                     self.expect(TokenKind::LeftParen);
                     let mut args: Vec<Statement> = Vec::new();
                     let mut attributes: Vec<Statement> = Vec::new();
-                    while self.current_token_kind() != TokenKind::RightParen { 
+                    while self.current_token_kind() != TokenKind::RightParen {
                         let name = self.current_text();
                         self.advance(); // consume arg name
                         if self.current_token_kind() == TokenKind::Equals {
                             self.advance(); // consume equals
                             attributes.push(Statement::KeyValue {
-                                key: name, 
+                                key: name,
                                 value: Expression::StringLiteral(self.current_text()),
                             });
                             self.advance(); // consume comma
                             continue;
-                        }
-                        else if self.current_token_kind() == TokenKind::Comma {
-                            args.push(Statement::KeyValue { // TODO not sure if this is the right way to do this
+                        } else if self.current_token_kind() == TokenKind::Comma {
+                            args.push(Statement::KeyValue {
+                                // TODO not sure if this is the right way to do this
                                 key: name,
                                 value: Expression::StringLiteral("argument".to_string()),
                             });
                             self.advance(); // consume comma
                             continue;
-                        }
-                        else if self.current_token_kind() == TokenKind::RightParen {
-                            args.push(Statement::KeyValue { // TODO not sure if this is the right way to do this
+                        } else if self.current_token_kind() == TokenKind::RightParen {
+                            args.push(Statement::KeyValue {
+                                // TODO not sure if this is the right way to do this
                                 key: name,
                                 value: Expression::StringLiteral("argument".to_string()),
                             });
                             break;
-                        }
-                        else {
+                        } else {
                             panic!(
                                 "Parse error: unexpected token in function call arguments. Found: {:?} at {}:{}",
                                 self.current_token_kind(),
@@ -351,12 +350,12 @@ impl Parser {
         let name = self.toks.source[self.toks.ranges[self.idx - 1].clone()].to_string();
 
         self.expect(TokenKind::LeftParen);
-        let args = self.parse_args();
+        let params = self.parse_args();
 
         self.expect(TokenKind::LeftBrace);
         let body = self.parse_block();
 
-        Statement::FunctionDecl{ name, args, body }
+        Statement::FunctionDecl { name, params, body }
     }
 
     fn parse_args(&mut self) -> Vec<crate::ast::FunctionParam> {

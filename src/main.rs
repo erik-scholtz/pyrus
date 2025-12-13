@@ -5,6 +5,7 @@ use std::fs;
 use pyrus::parser;
 use pyrus::lexer;
 use pyrus::ast;
+use pyrus::hlir;
 
 fn main() {
     let args: Vec<OsString> = env::args_os().collect();
@@ -24,7 +25,11 @@ fn main() {
     // let tokens = lexer::lex(&data);
     // println!("{:?}", &tokens);
 
+    // let ast = parser::parse(&data);
+    // println!("{:#?}", ast);
+
+
     let ast = parser::parse(&data);
-    println!("{:#?}", ast);
+    hlir::lower(&ast);
 
 }

@@ -1,44 +1,58 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, btree_map::Values};
 
-use crate::ast::Ast;
+use crate::ast::{Ast, Statement};
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
+enum Op {
+    Assign(String, ConstValue),
+    Call(String, Vec<ConstValue>),
+    If(ConstValue, Block, Option<Block>),
+    While(ConstValue, Block),
+    Return(ConstValue),
+}
+
+#[derive(Debug, Clone)]
+pub struct Block {
+    ops: Vec<Op>,
+}
+
+#[derive(Debug, Clone)]
 pub enum ConstValue {
-    Number(f64),
+    Number(i64),
     Color(String),
     Str(String),
     Bool(bool),
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct FuncDecl {
     name: String,
     params: Vec<String>,
-    body: Vec<()>, // Placeholder for function body statements
+    body: Block, // Placeholder for function body statements
 }
 
 impl FuncDecl {
-    pub fn new(name: String, params: Vec<String>, body: Vec<()>) -> Self {
+    pub fn new(name: String, params: Vec<String>, body: Block) -> Self {
         FuncDecl { name, params, body }
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct DocumentDecl {
     title: String,
-    body: Vec<()>, // Placeholder for document body elements
+    body: Block, // Placeholder for document body elements
 }
 
 impl DocumentDecl {
     pub fn new() -> Self {
         DocumentDecl {
             title: String::new(),
-            body: Vec::new(),
+            body: Block { ops: Vec::new() },
         }
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct StyleDecl {
     rules: Vec<()>, // Placeholder for style rules
 }
@@ -49,13 +63,13 @@ impl StyleDecl {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct GlobalDecl {
     name: String,
     value: ConstValue,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct HLIRModule {
     defaults: HashMap<String, ConstValue>,
     globals: Vec<GlobalDecl>, // top-level variables
@@ -85,36 +99,97 @@ impl HlirInterp {
         self.fresh_temp += 1;
         temp
     }
+
     fn lower(&mut self) {
-        let hlirmodlue = HLIRModule {
+        let mut hlirmodlue = HLIRModule {
             defaults: HashMap::new(),
             globals: Vec::new(),
             functions: Vec::new(),
             document: DocumentDecl::new(),
             stylesheet: StyleDecl::new(),
         };
-        self.lowerTemplateBlock(&hlirmodlue);
-        self.lowerDocumentBlock(&hlirmodlue);
-        self.lowerStyleBlock(&hlirmodlue);
+        self.lowerTemplateBlock(&mut hlirmodlue);
+        self.lowerDocumentBlock(&mut hlirmodlue);
+        self.lowerStyleBlock(&mut hlirmodlue);
     }
 
-    fn lowerTemplateBlock(&mut self, hlirmodlue: &HLIRModule) {
+    fn lowerTemplateBlock(&mut self, hlirmodlue: &mut HLIRModule) {
         // all global, default and function declarations
         // handle defaults and globals inside this function call since they are small
-        self.lowerFunctionDecl(hlirmodlue);
+
+        // loop over ast
+        if let Some(template) = &self.ast.template {
+            let statements = template.statements.clone();
+            for statement in &statements {
+                match statement {
+                    crate::ast::Statement::VarAssign { name, value: value } => {
+                        match value {
+                            crate::ast::Expression::StringLiteral(s) => {
+                                hlirmodlue.globals.push(GlobalDecl {
+                                    name: name.clone(),
+                                    value: ConstValue::Str(s.clone()),
+                                });
+                            }
+                            crate::ast::Expression::NumberLiteral(n) => {
+                                hlirmodlue.globals.push(GlobalDecl {
+                                    name: name.clone(),
+                                    value: ConstValue::Number(*n),
+                                });
+                            }
+                            _ => {
+                                // TODO handle other types
+                            }
+                        }
+                    }
+                    crate::ast::Statement::DefaultSet { key, value } => {
+                        match value {
+                            crate::ast::Expression::StringLiteral(s) => {
+                                hlirmodlue
+                                    .defaults
+                                    .insert(key.clone(), ConstValue::Str(s.clone()));
+                            }
+                            crate::ast::Expression::NumberLiteral(n) => {
+                                hlirmodlue
+                                    .defaults
+                                    .insert(key.clone(), ConstValue::Number(*n));
+                            }
+                            _ => {
+                                // TODO handle other types
+                            }
+                        }
+                    }
+                    crate::ast::Statement::ConstAssign { name, value } => {
+                        // TODO handle constant declaration
+                    }
+                    crate::ast::Statement::FunctionDecl { name, params, body } => {
+                        // self.lowerFunctionDecl(hlirmodlue);
+                        let func_index = usize::try_from(self.freshTemp()).unwrap();
+                        hlirmodlue.functions.insert(
+                            func_index,
+                            FuncDecl {
+                                name: name.clone(),
+                                params: Vec::new(), // TODO lower params
+                                body: Block { ops: Vec::new() }, // TODO lower body
+                            },
+                        );
+                    }
+                    _ => {}
+                }
+            }
+        }
+        println!("HLIR Defaults: {:?}", hlirmodlue.defaults);
+        println!("HLIR Globals: {:?}", hlirmodlue.globals);
     }
 
-    fn lowerDocumentBlock(&mut self, hlirmodlue: &HLIRModule) {
+    fn lowerDocumentBlock(&mut self, hlirmodlue: &mut HLIRModule) {
         // TODO all function calls and default structure/document primatives calls
     }
 
-    fn lowerStyleBlock(&mut self, hlirmodlue: &HLIRModule) {
+    fn lowerStyleBlock(&mut self, hlirmodlue: &mut HLIRModule) {
         // TODO all style calls
     }
 
-    fn lowerFunctionDecl(&mut self, hlirmodlue: &HLIRModule) {
-
-    }
+    fn lowerFunctionDecl(&mut self, hlirmodlue: &HLIRModule) {}
 
     fn lowerExpressionToTemp(&mut self) {}
 }

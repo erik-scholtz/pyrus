@@ -33,7 +33,7 @@ pub enum Expression {
 #[derive(Debug, Clone)]
 enum InterpPart {
     Text(String),
-    Expression(Expression),      // interpolated portion
+    Expression(Expression), // interpolated portion
 }
 
 #[derive(Debug, Clone)]
@@ -53,7 +53,8 @@ pub enum Statement {
         key: String,
         value: Expression,
     },
-    VarAssign { // value should never be an expression, should always be explicit
+    VarAssign {
+        // value should never be an expression, should always be explicit
         name: String,
         value: Expression,
     },
@@ -79,7 +80,7 @@ pub enum Statement {
     /// name(args) { body... }
     FunctionDecl {
         name: String,
-        args: Vec<FunctionParam>, // probably empty for now
+        params: Vec<FunctionParam>, // probably empty for now
         body: Vec<Statement>,
     },
     FunctionCall {
@@ -94,23 +95,20 @@ pub enum Statement {
     Attributes {
         attributes: Vec<Statement>,
     },
-    Paragraph { // literally just a block of text
+    Paragraph {
+        // literally just a block of text
         value: Expression,
     },
 }
 
-
 // Document Block
 
-
-#[derive(Debug, Clone)] 
+#[derive(Debug, Clone)]
 pub struct DocumentBlock {
     pub statements: Vec<Statement>, // TODO document statements
 }
 
-
-
-#[derive(Debug, Clone)] 
+#[derive(Debug, Clone)]
 pub struct StyleBlock {
     pub statements: Vec<Statement>, // TODO style statements
 }
@@ -121,4 +119,3 @@ pub struct Ast {
     pub document: Option<DocumentBlock>,
     pub style: Option<StyleBlock>,
 }
-

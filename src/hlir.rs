@@ -5,6 +5,7 @@ use crate::ast::{Ast, Statement};
 
 #[derive(Debug, Clone)]
 enum Op {
+    ConstAssign(String, ConstValue),
     Assign(String, ConstValue),
     Call(String, Vec<ConstValue>),
     If(ConstValue, Block, Option<Block>),
@@ -21,7 +22,7 @@ pub struct Block {
 pub enum ConstValue {
     Number(i64),
     Color(String),
-    Str(String),
+    String(String),
     Bool(bool),
 }
 
@@ -37,12 +38,6 @@ pub struct FuncDecl {
     name: String,
     params: Vec<Param>,
     body: Block, // Placeholder for function body statements
-}
-
-impl FuncDecl {
-    pub fn new(name: String, params: Vec<Param>, body: Block) -> Self {
-        FuncDecl { name, params, body }
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -134,7 +129,7 @@ impl HlirInterp {
                             crate::ast::Expression::StringLiteral(s) => {
                                 hlirmodlue.globals.push(GlobalDecl {
                                     name: name.clone(),
-                                    value: ConstValue::Str(s.clone()),
+                                    value: ConstValue::String(s.clone()),
                                 });
                             }
                             crate::ast::Expression::NumberLiteral(n) => {
@@ -153,7 +148,7 @@ impl HlirInterp {
                             crate::ast::Expression::StringLiteral(s) => {
                                 hlirmodlue
                                     .defaults
-                                    .insert(key.clone(), ConstValue::Str(s.clone()));
+                                    .insert(key.clone(), ConstValue::String(s.clone()));
                             }
                             crate::ast::Expression::NumberLiteral(n) => {
                                 hlirmodlue
@@ -170,7 +165,7 @@ impl HlirInterp {
                             crate::ast::Expression::StringLiteral(s) => {
                                 hlirmodlue.globals.push(GlobalDecl {
                                     name: name.clone(),
-                                    value: ConstValue::Str(s.clone()),
+                                    value: ConstValue::String(s.clone()),
                                 });
                             }
                             crate::ast::Expression::NumberLiteral(n) => {
@@ -185,10 +180,8 @@ impl HlirInterp {
                         }
                     }
                     crate::ast::Statement::FunctionDecl { name, params, body } => {
-                        // self.lowerFunctionDecl(hlirmodlue);
                         let func_index = usize::try_from(self.freshTemp()).unwrap();
-                        let hlir_body = Block { ops: Vec::new() };
-                        // let hlir_body = self.lowerFunctionDecl(body);
+                        let hlir_body = self.lowerFunctionDecl(body);
                         hlirmodlue.functions.insert(
                             func_index,
                             FuncDecl {
@@ -216,25 +209,44 @@ impl HlirInterp {
     }
 
     // TODO
-    // fn lowerFunctionDecl(&mut self, body: &Vec<crate::ast::Statement>) -> Block {
-    //     // TODO lower function body
-    //     let mut ops = Vec::new<Ops>();
-    //     for stmt in body {
-    //         match stmt {
-    //             crate::ast::Statement::ConstAssign(name, expr) => {
-    //                 ops.push(Op::ConstAssign(name.clone(), self.lowerExpressionToTemp(expr)));
-    //             }
+    fn lowerFunctionDecl(&mut self, body: &Vec<crate::ast::Statement>) -> Block {
+        // TODO lower function body
+        let mut ops = Vec::new();
+        for stmt in body {
+            match stmt {
+                crate::ast::Statement::ConstAssign { name, value } => match value {
+                    crate::ast::Expression::StringLiteral(s) => {
+                        ops.push(Op::ConstAssign(name.clone(), ConstValue::String(s.clone())));
+                    }
+                    crate::ast::Expression::NumberLiteral(n) => {
+                        ops.push(Op::ConstAssign(name.clone(), ConstValue::Number(n.clone())));
+                    }
+                    // TODO other types
+                    _ => {}
+                },
+                crate::ast::Statement::Return(expr) => {
+                    match expr {
+                        crate::ast::Expression::StringLiteral(s) => {
+                            ops.push(Op::ConstAssign(
+                                "return_value".to_string(),
+                                ConstValue::String(s.clone()),
+                            ));
+                        }
+                        crate::ast::Expression::NumberLiteral(n) => {
+                            ops.push(Op::ConstAssign(
+                                "return_value".to_string(),
+                                ConstValue::Number(n.clone()),
+                            ));
+                        }
+                        // TODO other types
+                        _ => {}
+                    }
+                }
+                _ => {}
+            }
+        }
+        Block { ops }
+    }
 
-    //             crate::ast::Statement::Return(expr) => {
-    //                 ops.push(Op::Return(self.lowerExpressionToTemp(expr)));
-    //             }
-    //             _ => {}
-    //         }
-    //     }
-    //     Block { ops }
-    // }
-
-    // fn lowerExpressionToTemp(&mut self, stmt: Statement) {
-
-    // }
+    fn lowerExpressionToTemp(&mut self, stmt: Statement) {}
 }

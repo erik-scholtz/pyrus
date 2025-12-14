@@ -5,6 +5,7 @@ pub enum BinaryOp {
     Multiply,
     Divide,
     Equals,
+    Mod,
 }
 
 #[derive(Debug, Clone)]
@@ -28,6 +29,15 @@ pub enum Expression {
         operator: UnaryOp,
         expression: Box<Expression>,
     },
+}
+
+impl Expression {
+    pub fn as_number(&self) -> Option<i64> {
+        match self {
+            Expression::NumberLiteral(n) => Some(*n),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

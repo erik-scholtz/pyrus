@@ -4,9 +4,11 @@ template {
     title = "My Document"       // this is a default variable for the document
     author = "Alice"            // this is a default variable for the document
     font_size = 12              // this is a default variable for the document
-    
+
     // Simple formula
-    let total_price = $price * quantity$ // this is not a default value and needs to be defined with "let" or "const"
+    let total_price = "$price * quantity$" // this is not a default value and needs to be defined with "let" or "const"
+
+    const tax_rate = 0.08       // this is a constant value that can be used throughout the document
 
     func intro_section() {
         return "introduction, the total price is {total_price}"

@@ -1,5 +1,6 @@
 use std::collections::{HashMap, btree_map::Values};
 
+use crate::ast::Expression;
 use crate::ast::{Ast, Statement};
 
 #[derive(Debug, Clone)]
@@ -25,14 +26,21 @@ pub enum ConstValue {
 }
 
 #[derive(Debug, Clone)]
+pub struct Param {
+    pub name: String,
+    pub type_: String,
+    pub default: Option<ConstValue>,
+}
+
+#[derive(Debug, Clone)]
 pub struct FuncDecl {
     name: String,
-    params: Vec<String>,
+    params: Vec<Param>,
     body: Block, // Placeholder for function body statements
 }
 
 impl FuncDecl {
-    pub fn new(name: String, params: Vec<String>, body: Block) -> Self {
+    pub fn new(name: String, params: Vec<Param>, body: Block) -> Self {
         FuncDecl { name, params, body }
     }
 }
@@ -117,12 +125,11 @@ impl HlirInterp {
         // all global, default and function declarations
         // handle defaults and globals inside this function call since they are small
 
-        // loop over ast
         if let Some(template) = &self.ast.template {
             let statements = template.statements.clone();
             for statement in &statements {
                 match statement {
-                    crate::ast::Statement::VarAssign { name, value: value } => {
+                    crate::ast::Statement::VarAssign { name, value } => {
                         match value {
                             crate::ast::Expression::StringLiteral(s) => {
                                 hlirmodlue.globals.push(GlobalDecl {
@@ -159,17 +166,35 @@ impl HlirInterp {
                         }
                     }
                     crate::ast::Statement::ConstAssign { name, value } => {
-                        // TODO handle constant declaration
+                        match value {
+                            crate::ast::Expression::StringLiteral(s) => {
+                                hlirmodlue.globals.push(GlobalDecl {
+                                    name: name.clone(),
+                                    value: ConstValue::Str(s.clone()),
+                                });
+                            }
+                            crate::ast::Expression::NumberLiteral(n) => {
+                                hlirmodlue.globals.push(GlobalDecl {
+                                    name: name.clone(),
+                                    value: ConstValue::Number(*n),
+                                });
+                            }
+                            _ => {
+                                // TODO handle other types
+                            }
+                        }
                     }
                     crate::ast::Statement::FunctionDecl { name, params, body } => {
                         // self.lowerFunctionDecl(hlirmodlue);
                         let func_index = usize::try_from(self.freshTemp()).unwrap();
+                        let hlir_body = Block { ops: Vec::new() };
+                        // let hlir_body = self.lowerFunctionDecl(body);
                         hlirmodlue.functions.insert(
                             func_index,
                             FuncDecl {
                                 name: name.clone(),
                                 params: Vec::new(), // TODO lower params
-                                body: Block { ops: Vec::new() }, // TODO lower body
+                                body: hlir_body,    // TODO lower body
                             },
                         );
                     }
@@ -179,6 +204,7 @@ impl HlirInterp {
         }
         println!("HLIR Defaults: {:?}", hlirmodlue.defaults);
         println!("HLIR Globals: {:?}", hlirmodlue.globals);
+        println!("HLIR Functions: {:?}", hlirmodlue.functions);
     }
 
     fn lowerDocumentBlock(&mut self, hlirmodlue: &mut HLIRModule) {
@@ -189,7 +215,26 @@ impl HlirInterp {
         // TODO all style calls
     }
 
-    fn lowerFunctionDecl(&mut self, hlirmodlue: &HLIRModule) {}
+    // TODO
+    // fn lowerFunctionDecl(&mut self, body: &Vec<crate::ast::Statement>) -> Block {
+    //     // TODO lower function body
+    //     let mut ops = Vec::new<Ops>();
+    //     for stmt in body {
+    //         match stmt {
+    //             crate::ast::Statement::ConstAssign(name, expr) => {
+    //                 ops.push(Op::ConstAssign(name.clone(), self.lowerExpressionToTemp(expr)));
+    //             }
 
-    fn lowerExpressionToTemp(&mut self) {}
+    //             crate::ast::Statement::Return(expr) => {
+    //                 ops.push(Op::Return(self.lowerExpressionToTemp(expr)));
+    //             }
+    //             _ => {}
+    //         }
+    //     }
+    //     Block { ops }
+    // }
+
+    // fn lowerExpressionToTemp(&mut self, stmt: Statement) {
+
+    // }
 }

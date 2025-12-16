@@ -57,6 +57,12 @@ pub struct TemplateBlock {
 }
 
 #[derive(Debug, Clone)]
+pub struct KeyValue {
+    pub key: String,
+    pub value: Expression,
+}
+
+#[derive(Debug, Clone)]
 pub enum Statement {
     /// everything between `{` and `}` that isn't a function definition or a return
     DefaultSet {
@@ -95,12 +101,8 @@ pub enum Statement {
     },
     FunctionCall {
         name: String,
-        args: Vec<Statement>,
-        attributes: Vec<Statement>,
-    },
-    KeyValue {
-        key: String,
-        value: Expression,
+        args: Vec<KeyValue>,
+        attributes: Vec<KeyValue>,
     },
     Attributes {
         attributes: Vec<Statement>,

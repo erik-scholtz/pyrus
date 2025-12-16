@@ -28,6 +28,5 @@ fn main() {
     let ast = parser::parse(&data);
     println!("{:#?}", ast);
 
-    let ast = parser::parse(&data);
     hlir::lower(&ast);
 }

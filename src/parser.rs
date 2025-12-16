@@ -1,6 +1,6 @@
 use core::panic;
 
-use crate::ast::{Ast, Expression, Statement};
+use crate::ast::{Ast, Expression, KeyValue, Statement};
 use crate::lexer::{TokenKind, TokenStream, lex};
 
 pub fn parse(source: &str) -> Ast {
@@ -221,10 +221,6 @@ impl Parser {
     }
 
     fn parse_statement(&mut self) -> Statement {
-        println!(
-            "Parsing statement at token: {:?}",
-            self.current_token_kind()
-        );
         match self.current_token_kind() {
             TokenKind::Identifier => {
                 if self.toks.kinds.get(self.idx + 1) == Some(&TokenKind::LeftParen) {
@@ -232,21 +228,21 @@ impl Parser {
                     let func_name = self.current_text();
                     self.advance(); // consume function name
                     self.expect(TokenKind::LeftParen);
-                    let mut args: Vec<Statement> = Vec::new();
-                    let mut attributes: Vec<Statement> = Vec::new();
+                    let mut args: Vec<KeyValue> = Vec::new();
+                    let mut attributes: Vec<KeyValue> = Vec::new();
                     while self.current_token_kind() != TokenKind::RightParen {
                         let name = self.current_text();
                         self.advance(); // consume arg name
                         if self.current_token_kind() == TokenKind::Equals {
                             self.advance(); // consume equals
-                            attributes.push(Statement::KeyValue {
+                            attributes.push(KeyValue {
                                 key: name,
                                 value: Expression::StringLiteral(self.current_text()),
                             });
                             self.advance(); // consume comma
                             continue;
                         } else if self.current_token_kind() == TokenKind::Comma {
-                            args.push(Statement::KeyValue {
+                            args.push(KeyValue {
                                 // TODO not sure if this is the right way to do this
                                 key: name,
                                 value: Expression::StringLiteral("argument".to_string()),
@@ -254,7 +250,7 @@ impl Parser {
                             self.advance(); // consume comma
                             continue;
                         } else if self.current_token_kind() == TokenKind::RightParen {
-                            args.push(Statement::KeyValue {
+                            args.push(KeyValue {
                                 // TODO not sure if this is the right way to do this
                                 key: name,
                                 value: Expression::StringLiteral("argument".to_string()),
@@ -288,8 +284,6 @@ impl Parser {
                     let trimmed = self.current_text().trim_matches('"').to_string();
                     let expr = Expression::StringLiteral(trimmed); // this should always be true
                     self.advance();
-                    // print current token for debugging
-                    println!("Parsed expression in statement: {:?}", expr);
                     Statement::DefaultSet {
                         key: varname,
                         value: expr,

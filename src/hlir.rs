@@ -1,16 +1,33 @@
 use std::collections::{HashMap, btree_map::Values};
 
-use crate::ast::Expression;
-use crate::ast::{Ast, Statement};
+use crate::ast::Ast;
 
 #[derive(Debug, Clone)]
 enum Op {
     ConstAssign(String, ConstValue),
     Assign(String, ConstValue),
-    Call(String, Vec<ConstValue>),
+    Call(String, Vec<ParamItem>),
     If(ConstValue, Block, Option<Block>),
     While(ConstValue, Block),
     Return(ConstValue),
+    Paragraph(String), // TODO: remove and create Element::Paragraph
+}
+
+#[derive(Debug, Clone)]
+struct ParamItem {
+    name: String,
+    type_: String,
+    default: Option<ConstValue>,
+}
+
+// TODO
+enum Element {
+    Paragraph(String),
+    Heading(String),
+    List(Vec<Element>),
+    Table(Vec<Vec<Element>>),
+    Image(String, String),
+    Code(String, String), // Language, actual code
 }
 
 #[derive(Debug, Clone)]
@@ -42,14 +59,12 @@ pub struct FuncDecl {
 
 #[derive(Debug, Clone)]
 pub struct DocumentDecl {
-    title: String,
     body: Block, // Placeholder for document body elements
 }
 
 impl DocumentDecl {
     pub fn new() -> Self {
         DocumentDecl {
-            title: String::new(),
             body: Block { ops: Vec::new() },
         }
     }
@@ -114,6 +129,8 @@ impl HlirInterp {
         self.lowerTemplateBlock(&mut hlirmodlue);
         self.lowerDocumentBlock(&mut hlirmodlue);
         self.lowerStyleBlock(&mut hlirmodlue);
+
+        println!("{:?}", hlirmodlue);
     }
 
     fn lowerTemplateBlock(&mut self, hlirmodlue: &mut HLIRModule) {
@@ -195,22 +212,95 @@ impl HlirInterp {
                 }
             }
         }
-        println!("HLIR Defaults: {:?}", hlirmodlue.defaults);
-        println!("HLIR Globals: {:?}", hlirmodlue.globals);
-        println!("HLIR Functions: {:?}", hlirmodlue.functions);
     }
 
     fn lowerDocumentBlock(&mut self, hlirmodlue: &mut HLIRModule) {
-        // TODO all function calls and default structure/document primatives calls
+        let mut ops = Vec::new();
+        if let Some(document) = &self.ast.document {
+            let statements = document.statements.clone();
+            for statement in &statements {
+                match statement {
+                    crate::ast::Statement::ConstAssign { name, value } => match value {
+                        crate::ast::Expression::StringLiteral(s) => {
+                            ops.push(Op::ConstAssign(name.clone(), ConstValue::String(s.clone())));
+                        }
+                        crate::ast::Expression::NumberLiteral(n) => {
+                            ops.push(Op::ConstAssign(name.clone(), ConstValue::Number(*n)));
+                        }
+                        _ => {}
+                    },
+                    crate::ast::Statement::FunctionCall {
+                        // TODO this is really ugly, refac crazy match statements
+                        name,
+                        args,
+                        attributes,
+                    } => {
+                        let mut params = Vec::new();
+                        for arg in args {
+                            match arg {
+                                crate::ast::KeyValue { key, value } => match value {
+                                    crate::ast::Expression::StringLiteral(s) => {
+                                        params.push(ParamItem {
+                                            name: key.clone(),
+                                            type_: "String".to_string(),
+                                            default: Some(ConstValue::String(s.clone())),
+                                        });
+                                    }
+                                    crate::ast::Expression::NumberLiteral(n) => {
+                                        params.push(ParamItem {
+                                            name: key.clone(),
+                                            type_: "Number".to_string(),
+                                            default: Some(ConstValue::Number(*n)),
+                                        });
+                                    }
+                                    _ => {}
+                                },
+                            }
+                        }
+                        for attr in attributes {
+                            match attr {
+                                crate::ast::KeyValue { key, value } => match value {
+                                    crate::ast::Expression::StringLiteral(s) => {
+                                        params.push(ParamItem {
+                                            name: key.clone(),
+                                            type_: "String".to_string(),
+                                            default: Some(ConstValue::String(s.clone())),
+                                        });
+                                    }
+                                    &crate::ast::Expression::NumberLiteral(n) => {
+                                        params.push(ParamItem {
+                                            name: key.clone(),
+                                            type_: "Number".to_string(),
+                                            default: Some(ConstValue::Number(n)),
+                                        });
+                                    }
+                                    _ => {}
+                                },
+                            }
+                        }
+                        ops.push(Op::Call(name.clone(), params));
+                    }
+                    crate::ast::Statement::Paragraph { value } => match value {
+                        crate::ast::Expression::StringLiteral(text) => {
+                            ops.push(Op::Paragraph(text.clone()));
+                        }
+                        // TODO others
+                        _ => {}
+                    },
+                    _ => {}
+                }
+            }
+        }
+        hlirmodlue.document = DocumentDecl {
+            body: Block { ops },
+        };
     }
 
     fn lowerStyleBlock(&mut self, hlirmodlue: &mut HLIRModule) {
         // TODO all style calls
     }
 
-    // TODO
     fn lowerFunctionDecl(&mut self, body: &Vec<crate::ast::Statement>) -> Block {
-        // TODO lower function body
         let mut ops = Vec::new();
         for stmt in body {
             match stmt {
@@ -247,6 +337,4 @@ impl HlirInterp {
         }
         Block { ops }
     }
-
-    fn lowerExpressionToTemp(&mut self, stmt: Statement) {}
 }

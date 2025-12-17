@@ -3,7 +3,7 @@ use std::ffi::OsString;
 use std::fs;
 
 use pyrus::ast;
-use pyrus::hlir;
+use pyrus::hir;
 use pyrus::lexer;
 use pyrus::parser;
 
@@ -28,5 +28,5 @@ fn main() {
     let ast = parser::parse(&data);
     println!("{:#?}", ast);
 
-    hlir::lower(&ast);
+    hir::lower(&ast);
 }

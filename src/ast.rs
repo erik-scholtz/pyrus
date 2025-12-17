@@ -18,7 +18,8 @@ pub enum UnaryOp {
 pub enum Expression {
     StringLiteral(String),
     InterpolatedString(Vec<InterpPart>),
-    NumberLiteral(i64),
+    Int(i64),
+    Float(f64),
     Identifier(String),
     Binary {
         left: Box<Expression>,
@@ -32,9 +33,10 @@ pub enum Expression {
 }
 
 impl Expression {
+    // TODO this is not good find a way to remove
     pub fn as_number(&self) -> Option<i64> {
         match self {
-            Expression::NumberLiteral(n) => Some(*n),
+            Expression::Int(n) => Some(*n),
             _ => None,
         }
     }

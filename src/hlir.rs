@@ -120,61 +120,41 @@ struct Block {
 }
 
 #[derive(Debug, Clone)]
-struct DocumentDecl {
-    body: Block, // Placeholder for document body elements
-}
-
-impl DocumentDecl {
-    pub fn new() -> Self {
-        DocumentDecl {
-            body: Block { nodes: Vec::new() },
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-struct StyleDecl {
-    rules: Vec<()>, // Placeholder for style rules
-}
-
-#[derive(Debug, Clone)]
-pub struct HIRModule {
+pub struct HLIRModule {
     defaults: HashMap<String, ConstValue>,
     globals: Vec<GlobalDecl>, // top-level variables
     functions: Vec<FuncDecl>,
-    document: DocumentDecl,
-    stylesheet: StyleDecl,
 }
 
-pub fn lower(ast: &Ast) {
-    let mut interp = HIRPass { ast: ast.clone() };
-    interp.lower();
+pub fn lower(ast: &Ast) -> HLIRModule {
+    let mut interp = HLIRPass { ast: ast.clone() };
+    interp.lower()
 }
 
-struct HIRPass {
-    // Fields and methods for the Hlir struct
+struct HLIRPass {
+    // Fields and methods for the Hir struct
     ast: Ast,
 }
 
-impl HIRPass {
+impl HLIRPass {
     // Methods for the Hlir struct
 
-    fn lower(&mut self) {
-        let mut hlirmodlue = HIRModule {
+    fn lower(&mut self) -> HLIRModule {
+        let mut hlirmodule = HLIRModule {
             defaults: HashMap::new(),
             globals: Vec::new(),
             functions: Vec::new(),
-            document: DocumentDecl::new(),
-            stylesheet: StyleDecl { rules: Vec::new() },
         };
-        self.lowerTemplateBlock(&mut hlirmodlue);
-        self.lowerDocumentBlock(&mut hlirmodlue);
-        self.lowerStyleBlock(&mut hlirmodlue);
+        self.lowerTemplateBlock(&mut hlirmodule);
+        self.lowerDocumentBlock(&mut hlirmodule);
+        self.lowerStyleBlock(&mut hlirmodule);
 
-        println!("{:?}", hlirmodlue);
+        println!("{:?}", hlirmodule);
+
+        hlirmodule
     }
 
-    fn lowerTemplateBlock(&mut self, hirmodlue: &mut HIRModule) {
+    fn lowerTemplateBlock(&mut self, hlirmodlue: &mut HLIRModule) {
         // all global, default and function declarations
         // handle defaults and globals inside this function call since they are small
 
@@ -185,21 +165,21 @@ impl HIRPass {
                     crate::ast::Statement::VarAssign { name, value } => {
                         match value {
                             crate::ast::Expression::StringLiteral(s) => {
-                                hirmodlue.globals.push(GlobalDecl {
+                                hlirmodlue.globals.push(GlobalDecl {
                                     name: name.clone(),
                                     ty: Type::String,
                                     value: Assign::Var(VarValue::String(s.clone())),
                                 });
                             }
                             crate::ast::Expression::Int(n) => {
-                                hirmodlue.globals.push(GlobalDecl {
+                                hlirmodlue.globals.push(GlobalDecl {
                                     name: name.clone(),
                                     ty: Type::Int,
                                     value: Assign::Var(VarValue::Int(*n)),
                                 });
                             }
                             crate::ast::Expression::Float(n) => {
-                                hirmodlue.globals.push(GlobalDecl {
+                                hlirmodlue.globals.push(GlobalDecl {
                                     name: name.clone(),
                                     ty: Type::Float,
                                     value: Assign::Var(VarValue::Float(*n)),
@@ -213,12 +193,12 @@ impl HIRPass {
                     crate::ast::Statement::DefaultSet { key, value } => {
                         match value {
                             crate::ast::Expression::StringLiteral(s) => {
-                                hirmodlue
+                                hlirmodlue
                                     .defaults
                                     .insert(key.clone(), ConstValue::String(s.clone()));
                             }
                             crate::ast::Expression::Int(n) => {
-                                hirmodlue.defaults.insert(key.clone(), ConstValue::Int(*n));
+                                hlirmodlue.defaults.insert(key.clone(), ConstValue::Int(*n));
                             }
                             _ => {
                                 // TODO handle other types
@@ -228,14 +208,14 @@ impl HIRPass {
                     crate::ast::Statement::ConstAssign { name, value } => {
                         match value {
                             crate::ast::Expression::StringLiteral(s) => {
-                                hirmodlue.globals.push(GlobalDecl {
+                                hlirmodlue.globals.push(GlobalDecl {
                                     name: name.clone(),
                                     ty: Type::String,
                                     value: Assign::Const(ConstValue::String(s.clone())),
                                 });
                             }
                             crate::ast::Expression::Int(n) => {
-                                hirmodlue.globals.push(GlobalDecl {
+                                hlirmodlue.globals.push(GlobalDecl {
                                     name: name.clone(),
                                     ty: Type::Int,
                                     value: Assign::Const(ConstValue::Int(*n)),
@@ -247,9 +227,9 @@ impl HIRPass {
                         }
                     }
                     crate::ast::Statement::FunctionDecl { name, params, body } => {
-                        let func_id = hirmodlue.functions.len();
+                        let func_id = hlirmodlue.functions.len();
                         let hlir_body = self.lowerFunctionDecl(body);
-                        hirmodlue.functions.push(FuncDecl {
+                        hlirmodlue.functions.push(FuncDecl {
                             func_id: TryInto::<u32>::try_into(func_id).unwrap(),
                             name: name.clone(),
                             params: Vec::new(),            // TODO lower params
@@ -263,7 +243,7 @@ impl HIRPass {
         }
     }
 
-    fn lowerDocumentBlock(&mut self, hirmodlue: &mut HIRModule) {
+    fn lowerDocumentBlock(&mut self, hlirmodlue: &mut HLIRModule) {
         let mut nodes = Vec::new();
         if let Some(document) = &self.ast.document {
             let statements = document.statements.clone();
@@ -358,7 +338,7 @@ impl HIRPass {
                         }
                         // find function id off of the name
                         let mut func_id = 0;
-                        for func in &hirmodlue.functions {
+                        for func in &hlirmodlue.functions {
                             if func.name == *name {
                                 func_id = func.func_id;
                                 break;
@@ -380,12 +360,17 @@ impl HIRPass {
                 }
             }
         }
-        hirmodlue.document = DocumentDecl {
+        let func_id = hlirmodlue.functions.len();
+        hlirmodlue.functions.push(FuncDecl {
+            func_id: TryInto::<u32>::try_into(func_id).unwrap(),
+            name: "__document".to_string(),
+            params: Vec::new(),
+            return_type: ReturnType::Void,
             body: Block { nodes: nodes },
-        };
+        });
     }
 
-    fn lowerStyleBlock(&mut self, hirmodlue: &mut HIRModule) {
+    fn lowerStyleBlock(&mut self, hlirmodlue: &mut HLIRModule) {
         // TODO all style calls
     }
 

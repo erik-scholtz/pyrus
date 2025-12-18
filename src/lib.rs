@@ -1,4 +1,4 @@
 pub mod ast;
-pub mod hir;
+pub mod hlir;
 pub mod lexer;
 pub mod parser;

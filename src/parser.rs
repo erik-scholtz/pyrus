@@ -195,16 +195,17 @@ impl Parser {
                 Expression::StringLiteral(trimmed)
             }
             TokenKind::Float => {
-                let value = self.current_text(); // TODO handle number types properly
+                let value = self.current_text();
                 self.advance();
-                Expression::StringLiteral(value)
+                Expression::Float(value.parse().unwrap())
             }
             TokenKind::Int => {
-                let value = self.current_text(); // TODO handle number types properly
+                let value = self.current_text();
                 self.advance();
-                Expression::StringLiteral(value)
+                Expression::Int(value.parse().unwrap())
             }
             TokenKind::Dollarsign => {
+                // TODO not sure if this is necessary anymore
                 self.advance(); // first $
                 let expression = self.parse_expression();
                 self.advance(); // other $
@@ -231,6 +232,7 @@ impl Parser {
                     let mut args: Vec<KeyValue> = Vec::new();
                     let mut attributes: Vec<KeyValue> = Vec::new();
                     while self.current_token_kind() != TokenKind::RightParen {
+                        // function call
                         let name = self.current_text();
                         self.advance(); // consume arg name
                         if self.current_token_kind() == TokenKind::Equals {
@@ -282,7 +284,11 @@ impl Parser {
                     self.advance();
                     self.expect(TokenKind::Equals);
                     let trimmed = self.current_text().trim_matches('"').to_string();
-                    let expr = Expression::StringLiteral(trimmed); // this should always be true
+                    let expr = match trimmed {
+                        s if s.parse::<i64>().is_ok() => Expression::Int(s.parse().unwrap()),
+                        s if s.parse::<f64>().is_ok() => Expression::Float(s.parse().unwrap()),
+                        s => Expression::StringLiteral(s.to_string()),
+                    };
                     self.advance();
                     Statement::DefaultSet {
                         key: varname,

@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::ast::Ast;
 
 // default variables like the authur or default font size
@@ -121,7 +119,6 @@ struct Block {
 
 #[derive(Debug, Clone)]
 pub struct HLIRModule {
-    defaults: HashMap<String, ConstValue>,
     globals: Vec<GlobalDecl>, // top-level variables
     functions: Vec<FuncDecl>,
 }
@@ -141,7 +138,6 @@ impl HLIRPass {
 
     fn lower(&mut self) -> HLIRModule {
         let mut hlirmodule = HLIRModule {
-            defaults: HashMap::new(),
             globals: Vec::new(),
             functions: Vec::new(),
         };
@@ -193,12 +189,25 @@ impl HLIRPass {
                     crate::ast::Statement::DefaultSet { key, value } => {
                         match value {
                             crate::ast::Expression::StringLiteral(s) => {
-                                hlirmodlue
-                                    .defaults
-                                    .insert(key.clone(), ConstValue::String(s.clone()));
+                                hlirmodlue.globals.push(GlobalDecl {
+                                    name: "__".to_string() + key,
+                                    ty: Type::String,
+                                    value: Assign::Const(ConstValue::String(s.clone())),
+                                });
                             }
                             crate::ast::Expression::Int(n) => {
-                                hlirmodlue.defaults.insert(key.clone(), ConstValue::Int(*n));
+                                hlirmodlue.globals.push(GlobalDecl {
+                                    name: "__".to_string() + key,
+                                    ty: Type::Int,
+                                    value: Assign::Const(ConstValue::Int(*n)),
+                                });
+                            }
+                            crate::ast::Expression::Float(n) => {
+                                hlirmodlue.globals.push(GlobalDecl {
+                                    name: "__".to_string() + key,
+                                    ty: Type::Float,
+                                    value: Assign::Const(ConstValue::Float(*n)),
+                                });
                             }
                             _ => {
                                 // TODO handle other types

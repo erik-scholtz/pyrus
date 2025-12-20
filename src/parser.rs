@@ -1,6 +1,6 @@
 use core::panic;
 
-use crate::ast::{Ast, Expression, KeyValue, Statement};
+use crate::ast::{Ast, Expression, FuncParam, KeyValue, Statement};
 use crate::lexer::{TokenKind, TokenStream, lex};
 
 pub fn parse(source: &str) -> Ast {
@@ -247,7 +247,7 @@ impl Parser {
                             args.push(KeyValue {
                                 // TODO not sure if this is the right way to do this
                                 key: name,
-                                value: Expression::StringLiteral("argument".to_string()),
+                                value: Expression::StringLiteral("arg".to_string()),
                             });
                             self.advance(); // consume comma
                             continue;
@@ -255,7 +255,7 @@ impl Parser {
                             args.push(KeyValue {
                                 // TODO not sure if this is the right way to do this
                                 key: name,
-                                value: Expression::StringLiteral("argument".to_string()),
+                                value: Expression::StringLiteral("arg".to_string()),
                             });
                             break;
                         } else {
@@ -350,20 +350,41 @@ impl Parser {
         let name = self.toks.source[self.toks.ranges[self.idx - 1].clone()].to_string();
 
         self.expect(TokenKind::LeftParen);
-        let params = self.parse_args();
+        let params = self.parse_params();
+
+        let attributes = crate::ast::FuncAttributes::default();
 
         self.expect(TokenKind::LeftBrace);
         let body = self.parse_block();
 
-        Statement::FunctionDecl { name, params, body }
+        Statement::FunctionDecl {
+            name,
+            params,
+            attributes,
+            body,
+        }
     }
 
-    fn parse_args(&mut self) -> Vec<crate::ast::FunctionParam> {
+    fn parse_params(&mut self) -> Vec<crate::ast::FuncParam> {
+        // TODO rethink this at some point
         let mut params = Vec::new();
-        while self.match_kind(TokenKind::Identifier) {
-            let param_name = self.toks.source[self.toks.ranges[self.idx - 1].clone()].to_string();
-            params.push(crate::ast::FunctionParam { name: param_name });
-            self.match_kind(TokenKind::Comma);
+        loop {
+            match self.current_token_kind() {
+                TokenKind::RightParen => break,
+                TokenKind::Identifier => {
+                    let param_name = self.parse_expression();
+                    self.expect(TokenKind::Colon);
+                    self.expect(TokenKind::Identifier);
+                    let param_type =
+                        self.toks.source[self.toks.ranges[self.idx - 1].clone()].to_string();
+                    params.push(crate::ast::FuncParam {
+                        ty: param_type,
+                        value: param_name,
+                    });
+                    self.match_kind(TokenKind::Comma);
+                }
+                _ => panic!("Expected parameter or ')'"),
+            }
         }
         self.expect(TokenKind::RightParen);
         params

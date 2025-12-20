@@ -10,13 +10,14 @@ template {
 
     const tax_rate = 0.08       // this is a constant value that can be used throughout the document
 
-    func intro_section() {
+    func intro_section(param1: String, param2: Int) {
         return "introduction, the total price is {total_price}"
     }
 }
 
 document {
-    intro_section(ClassName=intro) // section has default attributes that can be called
+    let number = 42
+    intro_section("name", number, class="intro") // section has default attributes that can be called
     text {
         this is also text that can be parsed by the compiler
     }

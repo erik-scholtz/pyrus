@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 #[derive(Debug, Clone)]
 pub enum BinaryOp {
     Add,
@@ -30,6 +32,7 @@ pub enum Expression {
         operator: UnaryOp,
         expression: Box<Expression>,
     },
+    StructDefault(String),
 }
 
 impl Expression {
@@ -49,8 +52,9 @@ enum InterpPart {
 }
 
 #[derive(Debug, Clone)]
-pub struct FunctionParam {
-    pub name: String,
+pub struct FuncParam {
+    pub ty: String,
+    pub value: Expression,
 }
 
 #[derive(Debug, Clone)]
@@ -98,7 +102,8 @@ pub enum Statement {
     /// name(args) { body... }
     FunctionDecl {
         name: String,
-        params: Vec<FunctionParam>, // probably empty for now
+        params: Vec<FuncParam>, // probably empty for now
+        attributes: FuncAttributes,
         body: Vec<Statement>,
     },
     FunctionCall {
@@ -113,6 +118,64 @@ pub enum Statement {
         // literally just a block of text
         value: Expression,
     },
+}
+
+#[derive(Debug, Clone)]
+pub enum Align {
+    Left,
+    Center,
+    Right,
+}
+
+#[derive(Debug, Clone)]
+pub enum PageBreak {
+    Before,
+    After,
+    None,
+}
+
+#[derive(Debug, Clone)]
+pub struct FuncAttributes {
+    // JS-like identity & styling
+    pub id: Option<String>,
+    pub class: Vec<String>,
+    pub style: HashMap<String, String>,
+
+    // Layout
+    pub margin: Option<f32>,
+    pub padding: Option<f32>,
+    pub align: Option<Align>,
+
+    // Rendering control
+    pub hidden: bool,
+    pub condition: Option<bool>, // corresponds to `if=...`
+
+    // Pagination (PDF-specific)
+    pub page_break: PageBreak,
+
+    // Semantics
+    pub role: Option<String>,
+}
+
+impl Default for FuncAttributes {
+    fn default() -> Self {
+        Self {
+            id: None,
+            class: Vec::new(),
+            style: HashMap::new(),
+
+            margin: None,
+            padding: None,
+            align: None,
+
+            hidden: false,
+            condition: None,
+
+            page_break: PageBreak::None,
+
+            role: None,
+        }
+    }
 }
 
 // Document Block

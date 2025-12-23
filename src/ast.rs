@@ -102,7 +102,7 @@ pub enum Statement {
     /// name(args) { body... }
     FunctionDecl {
         name: String,
-        params: Vec<FuncParam>, // probably empty for now
+        args: Vec<FuncParam>, // probably empty for now
         attributes: FuncAttributes,
         body: Vec<Statement>,
     },

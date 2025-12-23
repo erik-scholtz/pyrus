@@ -350,7 +350,7 @@ impl Parser {
         let name = self.toks.source[self.toks.ranges[self.idx - 1].clone()].to_string();
 
         self.expect(TokenKind::LeftParen);
-        let params = self.parse_params();
+        let args = self.parse_args();
 
         let attributes = crate::ast::FuncAttributes::default();
 
@@ -359,13 +359,13 @@ impl Parser {
 
         Statement::FunctionDecl {
             name,
-            params,
+            args,
             attributes,
             body,
         }
     }
 
-    fn parse_params(&mut self) -> Vec<crate::ast::FuncParam> {
+    fn parse_args(&mut self) -> Vec<crate::ast::FuncParam> {
         // TODO rethink this at some point
         let mut params = Vec::new();
         loop {

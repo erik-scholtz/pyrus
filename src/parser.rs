@@ -1,6 +1,7 @@
 use core::panic;
+use std::any::type_name_of_val;
 
-use crate::ast::{Ast, Expression, FuncParam, KeyValue, Statement};
+use crate::ast::{ArgType, Ast, Expression, KeyValue, Statement};
 use crate::lexer::{TokenKind, TokenStream, lex};
 
 pub fn parse(source: &str) -> Ast {
@@ -229,11 +230,23 @@ impl Parser {
                     let func_name = self.current_text();
                     self.advance(); // consume function name
                     self.expect(TokenKind::LeftParen);
-                    let mut args: Vec<KeyValue> = Vec::new();
+                    let mut args: Vec<ArgType> = Vec::new();
                     let mut attributes: Vec<KeyValue> = Vec::new();
                     while self.current_token_kind() != TokenKind::RightParen {
                         // function call
                         let name = self.current_text();
+
+                        // TODO, bad form but woirking for right now
+                        let ty;
+                        if name.starts_with('"') {
+                            ty = "string";
+                        } else if let Ok(_) = name.parse::<i32>() {
+                            ty = "int";
+                        } else if let Ok(_) = name.parse::<f64>() {
+                            ty = "float";
+                        } else {
+                            ty = "var";
+                        }
                         self.advance(); // consume arg name
                         if self.current_token_kind() == TokenKind::Equals {
                             self.advance(); // consume equals
@@ -244,18 +257,16 @@ impl Parser {
                             self.advance(); // consume comma
                             continue;
                         } else if self.current_token_kind() == TokenKind::Comma {
-                            args.push(KeyValue {
-                                // TODO not sure if this is the right way to do this
-                                key: name,
-                                value: Expression::StringLiteral("arg".to_string()),
+                            args.push(ArgType {
+                                name: name,
+                                ty: ty.to_string(),
                             });
                             self.advance(); // consume comma
                             continue;
                         } else if self.current_token_kind() == TokenKind::RightParen {
-                            args.push(KeyValue {
-                                // TODO not sure if this is the right way to do this
-                                key: name,
-                                value: Expression::StringLiteral("arg".to_string()),
+                            args.push(ArgType {
+                                name: name,
+                                ty: ty.to_string(),
                             });
                             break;
                         } else {

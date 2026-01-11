@@ -1,7 +1,6 @@
 use std::collections::HashMap;
-use std::env::args;
 
-use crate::ast::{Ast, FuncAttributes, KeyValue};
+use crate::ast::{ArgType, Ast, FuncAttributes, KeyValue};
 use crate::types::{Literal, Type};
 
 // IDs
@@ -14,6 +13,14 @@ pub struct GlobalId(u32);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ValueId(pub u32);
+
+use std::fmt;
+
+impl fmt::Display for ValueId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Id {
@@ -55,7 +62,7 @@ pub enum Op {
 
     Call {
         result: Option<ValueId>,
-        func: FuncId,
+        func: Id,
         args: Vec<ValueId>, // see if this needs to be a CallArg struct
         attributes: FuncAttributes,
     },
@@ -285,13 +292,19 @@ impl HLIRPass {
         };
 
         self.symbol_table.push(HashMap::new()); // add new scope (document)
-        let scope_index = self.symbol_table.len() - 1;
 
         if let Some(document) = &self.ast.document {
             let statements = document.statements.clone();
             for statement in &statements {
                 match statement {
                     crate::ast::Statement::ConstAssign { name, value } => {
+                        // TODO, differnciate local and globakl functions
+                        let id = ValueId(TryInto::<u32>::try_into(ir_body.ops.len()).unwrap());
+                        let var = self.assign_local(name.clone(), value.clone(), id);
+                        ir_body.ops.push(var);
+                    }
+                    crate::ast::Statement::VarAssign { name, value } => {
+                        // TODO differnciate local and globakl functions
                         let id = ValueId(TryInto::<u32>::try_into(ir_body.ops.len()).unwrap());
                         let var = self.assign_local(name.clone(), value.clone(), id);
                         ir_body.ops.push(var);
@@ -302,18 +315,18 @@ impl HLIRPass {
                         args,
                         attributes,
                     } => {
-                        let mut args = self.handle_args(args, name);
-                        let mut attributes = self.handle_attributes(attributes, name);
-
                         // find function id of of the name
-                        let mut func_id = match self.find_symbol(name) {
+                        let func_id = match self.find_symbol(name) {
                             Some(id) => Some(id),
                             None => panic!("Function not found: {}", name),
                         };
 
+                        let args = self.handle_args(args, &mut ir_body);
+                        let attributes = self.handle_attributes(attributes, name);
+
                         ir_body.ops.push(Op::Call {
-                            // TODO
-                            func: FuncId(0),
+                            // TODO fix id, func_id is found but is wrong type
+                            func: func_id.unwrap(),
                             result: None,
                             args: args,
                             attributes: attributes,
@@ -431,32 +444,69 @@ impl HLIRPass {
         None
     }
 
-    fn handle_args(&mut self, arguments: &Vec<KeyValue>, name: &str) -> Vec<ValueId> {
+    fn handle_args(&mut self, arguments: &Vec<ArgType>, ir_body: &mut Block) -> Vec<ValueId> {
+        self.symbol_table.push(HashMap::new()); // adding new table for arg scope
         let mut args = Vec::new();
-        for arg in arguments {
+        for crate::ast::ArgType { name, ty } in arguments {
             // TODO this is really really bad will probably need to rethink a lot
-            // TODO make an internal table for refering what vasr name is to know what var is being used/called on
-            let func = match self.find_symbol(name) {
-                Some(id) => id,
-                None => panic!("Function not found"),
-            };
-            match arg {
-                crate::ast::KeyValue { key, value } => {
+            // TODO make an internal table for refering what var name is to know what var is being used/called on
+
+            // TODO handle cases where raw arguments are passed in
+            // maybe look at instead of passing "arg" pass the variable type or
+            // somethig if the var is not decalred, pass "var" if declared
+            // for right now if there is a quotes or number, assume raw arg
+            match ty.as_str() {
+                "var" => {
                     for table in self.symbol_table.iter_mut().rev() {
-                        if let Some(symbol) = table.get(key) {
+                        println!("Checking table: {:?}", table);
+                        if let Some(symbol) = table.get(name) {
                             match symbol {
-                                Id::Value(id) => args.push(*id),
+                                Id::Value(id) => {
+                                    println!("Found variable: {}", id);
+                                    args.push(*id);
+                                }
                                 _ => {}
                             }
-                            break;
-                        } else {
-                            // TODO handle cases where raw arguments are passed in
-                            todo!("handle cases of raw arguments")
                         }
                     }
                 }
+                "int" => {
+                    let value = name.as_str().parse::<i64>().unwrap();
+                    let id = ValueId(TryInto::<u32>::try_into(ir_body.ops.len()).unwrap());
+                    let var_name = "raw_arg_".to_string() + id.to_string().as_str();
+                    let var =
+                        self.assign_local(var_name.clone(), crate::ast::Expression::Int(value), id);
+                    ir_body.ops.push(var);
+                    args.push(id);
+                }
+                "float" => {
+                    let value = name.as_str().parse::<f64>().unwrap();
+                    let id = ValueId(TryInto::<u32>::try_into(ir_body.ops.len()).unwrap());
+                    let var_name = "raw_arg_".to_string() + id.to_string().as_str();
+                    let var = self.assign_local(
+                        var_name.clone(),
+                        crate::ast::Expression::Float(value),
+                        id,
+                    );
+                    ir_body.ops.push(var);
+                    args.push(id);
+                }
+                "string" => {
+                    let value = name.as_str().parse::<String>().unwrap();
+                    let id = ValueId(TryInto::<u32>::try_into(ir_body.ops.len()).unwrap());
+                    let var_name = "raw_arg_".to_string() + id.to_string().as_str();
+                    let var = self.assign_local(
+                        var_name.clone(),
+                        crate::ast::Expression::StringLiteral(value),
+                        id,
+                    );
+                    ir_body.ops.push(var);
+                    args.push(id);
+                }
+                _ => {}
             }
         }
+        self.symbol_table.pop();
         args
     }
 

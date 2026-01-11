@@ -69,6 +69,12 @@ pub struct KeyValue {
 }
 
 #[derive(Debug, Clone)]
+pub struct ArgType {
+    pub name: String,
+    pub ty: String,
+}
+
+#[derive(Debug, Clone)]
 pub enum Statement {
     /// everything between `{` and `}` that isn't a function definition or a return
     DefaultSet {
@@ -108,7 +114,7 @@ pub enum Statement {
     },
     FunctionCall {
         name: String,
-        args: Vec<KeyValue>,
+        args: Vec<ArgType>,
         attributes: Vec<KeyValue>,
     },
     Attributes {

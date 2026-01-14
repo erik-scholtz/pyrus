@@ -1,10 +1,12 @@
 use pyrus::ast::{BinaryOp, Expression, Statement, UnaryOp};
+use pyrus::lexer::lex;
 use pyrus::parser::parse;
 
 #[test]
 fn test_parse_empty_document() {
     let source = "document { }";
-    let ast = parse(source);
+    let tokens = lex(source);
+    let ast = parse(tokens);
     assert!(ast.document.is_some());
     assert!(ast.template.is_none());
     assert!(ast.style.is_none());
@@ -16,7 +18,8 @@ fn test_parse_empty_document() {
 #[test]
 fn test_parse_empty_template() {
     let source = "template { }";
-    let ast = parse(source);
+    let tokens = lex(source);
+    let ast = parse(tokens);
     assert!(ast.template.is_some());
     assert!(ast.document.is_none());
     assert!(ast.style.is_none());
@@ -28,7 +31,8 @@ fn test_parse_empty_template() {
 #[test]
 fn test_parse_empty_style() {
     let source = "style { }";
-    let ast = parse(source);
+    let tokens = lex(source);
+    let ast = parse(tokens);
     assert!(ast.style.is_some());
     assert!(ast.template.is_none());
     assert!(ast.document.is_none());
@@ -37,7 +41,8 @@ fn test_parse_empty_style() {
 #[test]
 fn test_parse_all_blocks() {
     let source = "template { } document { } style { }";
-    let ast = parse(source);
+    let tokens = lex(source);
+    let ast = parse(tokens);
     assert!(ast.template.is_some());
     assert!(ast.document.is_some());
     assert!(ast.style.is_some());
@@ -46,7 +51,8 @@ fn test_parse_all_blocks() {
 #[test]
 fn test_parse_variable_assignment() {
     let source = "template { let x = \"hello\" }";
-    let ast = parse(source);
+    let tokens = lex(source);
+    let ast = parse(tokens);
     let template = ast.template.unwrap();
     assert_eq!(template.statements.len(), 1);
 
@@ -65,7 +71,8 @@ fn test_parse_variable_assignment() {
 #[test]
 fn test_parse_const_assignment() {
     let source = "template { const PI = \"3.14\" }";
-    let ast = parse(source);
+    let tokens = lex(source);
+    let ast = parse(tokens);
     let template = ast.template.unwrap();
     assert_eq!(template.statements.len(), 1);
 
@@ -84,7 +91,8 @@ fn test_parse_const_assignment() {
 #[test]
 fn test_parse_unary_negation() {
     let source = "template { let x = - 42 }";
-    let ast = parse(source);
+    let tokens = lex(source);
+    let ast = parse(tokens);
     let template = ast.template.unwrap();
 
     match &template.statements[0] {
@@ -111,7 +119,8 @@ fn test_parse_unary_negation() {
 #[test]
 fn test_parse_binary_addition() {
     let source = "template { let sum = x + y }";
-    let ast = parse(source);
+    let tokens = lex(source);
+    let ast = parse(tokens);
     let template = ast.template.unwrap();
 
     match &template.statements[0] {
@@ -145,7 +154,8 @@ fn test_parse_binary_addition() {
 #[test]
 fn test_parse_binary_subtraction() {
     let source = "template { let diff = a - b }";
-    let ast = parse(source);
+    let tokens = lex(source);
+    let ast = parse(tokens);
     let template = ast.template.unwrap();
 
     match &template.statements[0] {
@@ -163,7 +173,8 @@ fn test_parse_binary_subtraction() {
 #[test]
 fn test_parse_binary_multiplication() {
     let source = "template { let product = a * b }";
-    let ast = parse(source);
+    let tokens = lex(source);
+    let ast = parse(tokens);
     let template = ast.template.unwrap();
 
     match &template.statements[0] {
@@ -181,7 +192,8 @@ fn test_parse_binary_multiplication() {
 #[test]
 fn test_parse_binary_division() {
     let source = "template { let quotient = a / b }";
-    let ast = parse(source);
+    let tokens = lex(source);
+    let ast = parse(tokens);
     let template = ast.template.unwrap();
 
     match &template.statements[0] {
@@ -199,7 +211,8 @@ fn test_parse_binary_division() {
 #[test]
 fn test_parse_binary_equals() {
     let source = "template { let result = a = b }";
-    let ast = parse(source);
+    let tokens = lex(source);
+    let ast = parse(tokens);
     let template = ast.template.unwrap();
 
     match &template.statements[0] {
@@ -217,7 +230,8 @@ fn test_parse_binary_equals() {
 #[test]
 fn test_parse_string_literal() {
     let source = "template { let msg = \"Hello, World!\" }";
-    let ast = parse(source);
+    let tokens = lex(source);
+    let ast = parse(tokens);
     let template = ast.template.unwrap();
 
     match &template.statements[0] {
@@ -232,7 +246,8 @@ fn test_parse_string_literal() {
 #[test]
 fn test_parse_integer_literal() {
     let source = "template { let num = 42 }";
-    let ast = parse(source);
+    let tokens = lex(source);
+    let ast = parse(tokens);
     let template = ast.template.unwrap();
 
     match &template.statements[0] {
@@ -252,7 +267,8 @@ fn test_parse_integer_literal() {
 #[test]
 fn test_parse_float_literal() {
     let source = "template { let pi = 3.14 }";
-    let ast = parse(source);
+    let tokens = lex(source);
+    let ast = parse(tokens);
     let template = ast.template.unwrap();
 
     match &template.statements[0] {
@@ -272,7 +288,8 @@ fn test_parse_float_literal() {
 #[test]
 fn test_parse_return_statement() {
     let source = "template { return \"done\" }";
-    let ast = parse(source);
+    let tokens = lex(source);
+    let ast = parse(tokens);
     let template = ast.template.unwrap();
 
     match &template.statements[0] {
@@ -284,19 +301,25 @@ fn test_parse_return_statement() {
     }
 }
 
-#[test]
+#[test] // TODO, change in how args are handled
 fn test_parse_function_declaration() {
     let source = "template { func add(x, y) { let result = x + y return result } }";
-    let ast = parse(source);
+    let tokens = lex(source);
+    let ast = parse(tokens);
     let template = ast.template.unwrap();
     assert_eq!(template.statements.len(), 1);
 
     match &template.statements[0] {
-        Statement::FunctionDecl { name, params, body } => {
+        Statement::FunctionDecl {
+            name,
+            args,
+            attributes,
+            body,
+        } => {
             assert_eq!(name, "add");
-            assert_eq!(params.len(), 2);
-            assert_eq!(params[0].name, "x");
-            assert_eq!(params[1].name, "y");
+            assert_eq!(args.len(), 2);
+            assert_eq!(args[0].value, "x");
+            assert_eq!(args[1].value, "y");
             assert!(body.len() > 0);
         }
         _ => panic!("Expected FunctionDecl statement"),
@@ -306,7 +329,8 @@ fn test_parse_function_declaration() {
 #[test]
 fn test_parse_function_call_no_args() {
     let source = "document { greet() }";
-    let ast = parse(source);
+    let tokens = lex(source);
+    let ast = parse(tokens);
     let doc = ast.document.unwrap();
 
     match &doc.statements[0] {
@@ -326,7 +350,8 @@ fn test_parse_function_call_no_args() {
 #[test]
 fn test_parse_function_call_with_args() {
     let source = "document { print(\"hello\", \"world\") }";
-    let ast = parse(source);
+    let tokens = lex(source);
+    let ast = parse(tokens);
     let doc = ast.document.unwrap();
 
     match &doc.statements[0] {
@@ -346,7 +371,8 @@ fn test_parse_function_call_with_args() {
 #[test]
 fn test_parse_function_call_with_attributes() {
     let source = "document { button(class = \"primary\") }";
-    let ast = parse(source);
+    let tokens = lex(source);
+    let ast = parse(tokens);
     let doc = ast.document.unwrap();
 
     match &doc.statements[0] {
@@ -366,7 +392,8 @@ fn test_parse_function_call_with_attributes() {
 #[test]
 fn test_parse_paragraph_block() {
     let source = "document { p { This is a paragraph } }";
-    let ast = parse(source);
+    let tokens = lex(source);
+    let ast = parse(tokens);
     let doc = ast.document.unwrap();
     assert_eq!(doc.statements.len(), 1);
 
@@ -384,7 +411,8 @@ fn test_parse_paragraph_block() {
 #[test]
 fn test_parse_default_set() {
     let source = "template { width = 100 }";
-    let ast = parse(source);
+    let tokens = lex(source);
+    let ast = parse(tokens);
     let template = ast.template.unwrap();
 
     match &template.statements[0] {
@@ -402,7 +430,8 @@ fn test_parse_default_set() {
 #[test]
 fn test_parse_multiple_statements() {
     let source = "template { let x = 1 let y = 2 let z = 3 }";
-    let ast = parse(source);
+    let tokens = lex(source);
+    let ast = parse(tokens);
     let template = ast.template.unwrap();
     assert_eq!(template.statements.len(), 3);
 }
@@ -410,7 +439,8 @@ fn test_parse_multiple_statements() {
 #[test]
 fn test_parse_mixed_statements() {
     let source = "template { let x = 10 const MAX = 100 width = 50 }";
-    let ast = parse(source);
+    let tokens = lex(source);
+    let ast = parse(tokens);
     let template = ast.template.unwrap();
     assert_eq!(template.statements.len(), 3);
 
@@ -431,7 +461,8 @@ fn test_parse_mixed_statements() {
 #[test]
 fn test_parse_dollar_sign_interpolation() {
     let source = "template { let msg = $ x $ }";
-    let ast = parse(source);
+    let tokens = lex(source);
+    let ast = parse(tokens);
     let template = ast.template.unwrap();
 
     match &template.statements[0] {
@@ -448,7 +479,8 @@ fn test_parse_dollar_sign_interpolation() {
 #[test]
 fn test_parse_nested_template_and_document() {
     let source = "template { func render() { return \"html\" } } document { p { Hello } }";
-    let ast = parse(source);
+    let tokens = lex(source);
+    let ast = parse(tokens);
     assert!(ast.template.is_some());
     assert!(ast.document.is_some());
 

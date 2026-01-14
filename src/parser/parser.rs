@@ -1,18 +1,19 @@
 use core::panic;
 use std::any::type_name_of_val;
 
-use crate::ast::{ArgType, Ast, Expression, KeyValue, Statement};
-use crate::lexer::{TokenKind, TokenStream, lex};
+use crate::ast::{
+    ArgType, Ast, DocumentBlock, Expression, KeyValue, Statement, StyleBlock, TemplateBlock,
+};
+use crate::lexer::{TokenKind, TokenStream};
 
-pub fn parse(source: &str) -> Ast {
-    let tokens = lex(source);
+pub fn parse(tokens: TokenStream) -> Ast {
     let p = Parser::new(tokens);
     p.parse()
 }
 
-struct Parser {
-    toks: TokenStream,
-    idx: usize,
+pub struct Parser {
+    pub toks: TokenStream,
+    pub idx: usize,
 }
 
 impl Parser {
@@ -22,7 +23,6 @@ impl Parser {
 
     fn parse(mut self) -> Ast {
         // high level pass
-        use crate::ast::{DocumentBlock, StyleBlock, TemplateBlock};
 
         let mut template = None;
         let mut document = None;
@@ -45,7 +45,7 @@ impl Parser {
                 TokenKind::Style => {
                     let style_block = Vec::new();
                     self.advance();
-                    self.skip_optional_block();
+                    self.skip_optional_block(); // TODO
                     style = Some(StyleBlock {
                         statements: style_block,
                     });
@@ -64,77 +64,6 @@ impl Parser {
             template,
             document,
             style,
-        }
-    }
-
-    fn current_token_kind(&self) -> TokenKind {
-        self.toks.kinds[self.idx]
-    }
-
-    fn current_token_line(&self) -> u32 {
-        self.toks.lines[self.idx]
-    }
-
-    fn current_token_col(&self) -> u32 {
-        self.toks.cols[self.idx]
-    }
-
-    fn current_text(&self) -> String {
-        let range = &self.toks.ranges[self.idx];
-        self.toks.source[range.start..range.end].to_string()
-    }
-
-    fn advance(&mut self) -> TokenKind {
-        if self.idx < self.toks.kinds.len() {
-            self.idx += 1;
-        }
-        self.toks.kinds[self.idx - 1]
-    }
-
-    fn expect(&mut self, kind: TokenKind) -> TokenKind {
-        if self.current_token_kind() == kind {
-            return self.advance().clone();
-        }
-        panic!(
-            "Parse error: expected {:?} but found {:?} at {}:{}",
-            kind,
-            self.current_token_kind(),
-            self.current_token_line(),
-            self.current_token_col()
-        );
-    }
-
-    fn match_kind(&mut self, kind: TokenKind) -> bool {
-        if self.current_token_kind() == kind {
-            self.advance();
-            return true;
-        }
-        false
-    }
-
-    /// If a block `{ ... }` follows, skip it including nested braces.
-    fn skip_optional_block(&mut self) {
-        // skip optional whitespace-free tokens; if next is LeftBrace, skip until matching RightBrace
-        if self.idx < self.toks.kinds.len() && self.current_token_kind() == TokenKind::LeftBrace {
-            // enter block
-            let mut depth: i32 = 0;
-            while self.idx < self.toks.kinds.len() {
-                match self.current_token_kind() {
-                    TokenKind::LeftBrace => {
-                        depth += 1;
-                    }
-                    TokenKind::RightBrace => {
-                        depth -= 1;
-                        if depth <= 0 {
-                            self.advance();
-                            break;
-                        }
-                    }
-                    TokenKind::Eof => break,
-                    _ => {}
-                }
-                self.advance();
-            }
         }
     }
 

@@ -1,17 +1,19 @@
 use core::panic;
+use std::any::type_name_of_val;
 
-use crate::ast::{Ast, Expression, Statement};
-use crate::lexer::{TokenKind, TokenStream, lex};
+use crate::ast::{
+    ArgType, Ast, DocumentBlock, Expression, KeyValue, Statement, StyleBlock, TemplateBlock,
+};
+use crate::lexer::{TokenKind, TokenStream};
 
-pub fn parse(source: &str) -> Ast {
-    let tokens = lex(source);
+pub fn parse(tokens: TokenStream) -> Ast {
     let p = Parser::new(tokens);
     p.parse()
 }
 
-struct Parser {
-    toks: TokenStream,
-    idx: usize,
+pub struct Parser {
+    pub toks: TokenStream,
+    pub idx: usize,
 }
 
 impl Parser {
@@ -21,7 +23,6 @@ impl Parser {
 
     fn parse(mut self) -> Ast {
         // high level pass
-        use crate::ast::{DocumentBlock, StyleBlock, TemplateBlock};
 
         let mut template = None;
         let mut document = None;
@@ -44,7 +45,7 @@ impl Parser {
                 TokenKind::Style => {
                     let style_block = Vec::new();
                     self.advance();
-                    self.skip_optional_block();
+                    self.skip_optional_block(); // TODO
                     style = Some(StyleBlock {
                         statements: style_block,
                     });
@@ -63,77 +64,6 @@ impl Parser {
             template,
             document,
             style,
-        }
-    }
-
-    fn current_token_kind(&self) -> TokenKind {
-        self.toks.kinds[self.idx]
-    }
-
-    fn current_token_line(&self) -> u32 {
-        self.toks.lines[self.idx]
-    }
-
-    fn current_token_col(&self) -> u32 {
-        self.toks.cols[self.idx]
-    }
-
-    fn current_text(&self) -> String {
-        let range = &self.toks.ranges[self.idx];
-        self.toks.source[range.start..range.end].to_string()
-    }
-
-    fn advance(&mut self) -> TokenKind {
-        if self.idx < self.toks.kinds.len() {
-            self.idx += 1;
-        }
-        self.toks.kinds[self.idx - 1]
-    }
-
-    fn expect(&mut self, kind: TokenKind) -> TokenKind {
-        if self.current_token_kind() == kind {
-            return self.advance().clone();
-        }
-        panic!(
-            "Parse error: expected {:?} but found {:?} at {}:{}",
-            kind,
-            self.current_token_kind(),
-            self.current_token_line(),
-            self.current_token_col()
-        );
-    }
-
-    fn match_kind(&mut self, kind: TokenKind) -> bool {
-        if self.current_token_kind() == kind {
-            self.advance();
-            return true;
-        }
-        false
-    }
-
-    /// If a block `{ ... }` follows, skip it including nested braces.
-    fn skip_optional_block(&mut self) {
-        // skip optional whitespace-free tokens; if next is LeftBrace, skip until matching RightBrace
-        if self.idx < self.toks.kinds.len() && self.current_token_kind() == TokenKind::LeftBrace {
-            // enter block
-            let mut depth: i32 = 0;
-            while self.idx < self.toks.kinds.len() {
-                match self.current_token_kind() {
-                    TokenKind::LeftBrace => {
-                        depth += 1;
-                    }
-                    TokenKind::RightBrace => {
-                        depth -= 1;
-                        if depth <= 0 {
-                            self.advance();
-                            break;
-                        }
-                    }
-                    TokenKind::Eof => break,
-                    _ => {}
-                }
-                self.advance();
-            }
         }
     }
 
@@ -195,16 +125,17 @@ impl Parser {
                 Expression::StringLiteral(trimmed)
             }
             TokenKind::Float => {
-                let value = self.current_text(); // TODO handle number types properly
+                let value = self.current_text();
                 self.advance();
-                Expression::StringLiteral(value)
+                Expression::Float(value.parse().unwrap())
             }
             TokenKind::Int => {
-                let value = self.current_text(); // TODO handle number types properly
+                let value = self.current_text();
                 self.advance();
-                Expression::StringLiteral(value)
+                Expression::Int(value.parse().unwrap())
             }
             TokenKind::Dollarsign => {
+                // TODO not sure if this is necessary anymore
                 self.advance(); // first $
                 let expression = self.parse_expression();
                 self.advance(); // other $
@@ -221,10 +152,6 @@ impl Parser {
     }
 
     fn parse_statement(&mut self) -> Statement {
-        println!(
-            "Parsing statement at token: {:?}",
-            self.current_token_kind()
-        );
         match self.current_token_kind() {
             TokenKind::Identifier => {
                 if self.toks.kinds.get(self.idx + 1) == Some(&TokenKind::LeftParen) {
@@ -232,36 +159,46 @@ impl Parser {
                     let func_name = self.current_text();
                     self.advance(); // consume function name
                     self.expect(TokenKind::LeftParen);
-                    let mut args: Vec<Statement> = Vec::new();
-                    let mut attributes: Vec<Statement> = Vec::new();
-                    while self.current_token_kind() != TokenKind::RightParen { 
+                    let mut args: Vec<ArgType> = Vec::new();
+                    let mut attributes: Vec<KeyValue> = Vec::new();
+                    while self.current_token_kind() != TokenKind::RightParen {
+                        // function call
                         let name = self.current_text();
+
+                        // TODO, bad form but woirking for right now
+                        let ty;
+                        if name.starts_with('"') {
+                            ty = "string";
+                        } else if let Ok(_) = name.parse::<i32>() {
+                            ty = "int";
+                        } else if let Ok(_) = name.parse::<f64>() {
+                            ty = "float";
+                        } else {
+                            ty = "var";
+                        }
                         self.advance(); // consume arg name
                         if self.current_token_kind() == TokenKind::Equals {
                             self.advance(); // consume equals
-                            attributes.push(Statement::KeyValue {
-                                key: name, 
+                            attributes.push(KeyValue {
+                                key: name,
                                 value: Expression::StringLiteral(self.current_text()),
                             });
                             self.advance(); // consume comma
                             continue;
-                        }
-                        else if self.current_token_kind() == TokenKind::Comma {
-                            args.push(Statement::KeyValue { // TODO not sure if this is the right way to do this
-                                key: name,
-                                value: Expression::StringLiteral("argument".to_string()),
+                        } else if self.current_token_kind() == TokenKind::Comma {
+                            args.push(ArgType {
+                                name: name,
+                                ty: ty.to_string(),
                             });
                             self.advance(); // consume comma
                             continue;
-                        }
-                        else if self.current_token_kind() == TokenKind::RightParen {
-                            args.push(Statement::KeyValue { // TODO not sure if this is the right way to do this
-                                key: name,
-                                value: Expression::StringLiteral("argument".to_string()),
+                        } else if self.current_token_kind() == TokenKind::RightParen {
+                            args.push(ArgType {
+                                name: name,
+                                ty: ty.to_string(),
                             });
                             break;
-                        }
-                        else {
+                        } else {
                             panic!(
                                 "Parse error: unexpected token in function call arguments. Found: {:?} at {}:{}",
                                 self.current_token_kind(),
@@ -287,10 +224,12 @@ impl Parser {
                     self.advance();
                     self.expect(TokenKind::Equals);
                     let trimmed = self.current_text().trim_matches('"').to_string();
-                    let expr = Expression::StringLiteral(trimmed); // this should always be true
+                    let expr = match trimmed {
+                        s if s.parse::<i64>().is_ok() => Expression::Int(s.parse().unwrap()),
+                        s if s.parse::<f64>().is_ok() => Expression::Float(s.parse().unwrap()),
+                        s => Expression::StringLiteral(s.to_string()),
+                    };
                     self.advance();
-                    // print current token for debugging
-                    println!("Parsed expression in statement: {:?}", expr);
                     Statement::DefaultSet {
                         key: varname,
                         value: expr,
@@ -353,18 +292,39 @@ impl Parser {
         self.expect(TokenKind::LeftParen);
         let args = self.parse_args();
 
+        let attributes = crate::ast::FuncAttributes::default();
+
         self.expect(TokenKind::LeftBrace);
         let body = self.parse_block();
 
-        Statement::FunctionDecl{ name, args, body }
+        Statement::FunctionDecl {
+            name,
+            args,
+            attributes,
+            body,
+        }
     }
 
-    fn parse_args(&mut self) -> Vec<crate::ast::FunctionParam> {
+    fn parse_args(&mut self) -> Vec<crate::ast::FuncParam> {
+        // TODO rethink this at some point
         let mut params = Vec::new();
-        while self.match_kind(TokenKind::Identifier) {
-            let param_name = self.toks.source[self.toks.ranges[self.idx - 1].clone()].to_string();
-            params.push(crate::ast::FunctionParam { name: param_name });
-            self.match_kind(TokenKind::Comma);
+        loop {
+            match self.current_token_kind() {
+                TokenKind::RightParen => break,
+                TokenKind::Identifier => {
+                    let param_name = self.parse_expression();
+                    self.expect(TokenKind::Colon);
+                    self.expect(TokenKind::Identifier);
+                    let param_type =
+                        self.toks.source[self.toks.ranges[self.idx - 1].clone()].to_string();
+                    params.push(crate::ast::FuncParam {
+                        ty: param_type,
+                        value: param_name,
+                    });
+                    self.match_kind(TokenKind::Comma);
+                }
+                _ => panic!("Expected parameter or ')'"),
+            }
         }
         self.expect(TokenKind::RightParen);
         params

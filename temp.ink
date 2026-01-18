@@ -4,17 +4,20 @@ template {
     title = "My Document"       // this is a default variable for the document
     author = "Alice"            // this is a default variable for the document
     font_size = 12              // this is a default variable for the document
-    
-    // Simple formula
-    let total_price = $price * quantity$ // this is not a default value and needs to be defined with "let" or "const"
 
-    func intro_section() {
+    // Simple formula
+    let total_price = "$price * quantity$" // this is not a default value and needs to be defined with "let" or "const"
+
+    const tax_rate = 0.08       // this is a constant value that can be used throughout the document
+
+    func intro_section(param1: String, param2: Int) {
         return "introduction, the total price is {total_price}"
     }
 }
 
 document {
-    intro_section(ClassName=intro) // section has default attributes that can be called
+    let number = 42
+    intro_section("name", number, class="intro") // section has default attributes that can be called
     text {
         this is also text that can be parsed by the compiler
     }

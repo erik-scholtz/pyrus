@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use crate::ast::{ArgType, Ast, FuncAttributes, KeyValue};
+use crate::ast::{Ast, FuncAttributes};
 use crate::hlir::ir_types::{
-    Block, Func, FuncId, Global, GlobalId, HLIRModule, Id, Literal, Op, TextElement, Type, ValueId,
+    Block, Func, FuncId, GlobalId, HLIRModule, Id, Op, TextElement, Type, ValueId,
 };
 
 pub fn lower(ast: &Ast) -> HLIRModule {

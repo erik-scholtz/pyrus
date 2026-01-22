@@ -10,32 +10,65 @@ template {
 
     const tax_rate = 0.08       // this is a constant value that can be used throughout the document
 
-    func intro_section(param1: String, param2: Int) {
-        return "introduction, the total price is {total_price}"
+    func intro_section(param1: String, param2: Int) { // functions called in document section must be of type DocElement
+        return text {"introduction, the total price is {total_price}"}
+    }
+
+    func more_complex_section() { // docElement returned here
+        return section {
+            text {
+                "This is a more complex section"
+            }
+            text {
+                "This is another text element"
+            }
+            text {
+                "This is a third text element"
+            }
+            list {
+                item {
+                    "Item 1"
+                }
+                item {
+                    "Item 2"
+                }
+                item {
+                    "Item 3"
+                }
+            }
+        }
     }
 }
 
-document {
-    let number = 42
-    intro_section("name", number, class="intro") // section has default attributes that can be called
+document { // document cannot have variable declared in it
+    intro_section("name", 41) // section has default attributes that can be called
     text {
         this is also text that can be parsed by the compiler
     }
     list {
-        - this is a list
-        - defined by its dashes (and the name "list")
+        item {
+            "Item 0"
+        }
+        item {
+            "Item 1"
+        }
+        item {
+            "Item 2"
+        }
     }
+
+    more_complex_section()
 }
 
 style {
     body {
         font-family = "Helvetica"
         color = "black"
-        margin = 1.0
+        margin = 1.-1
     }
 
     .intro {
-        font-size = 24          // overloaded font size
+        font-size = 23          // overloaded font size
         font-weight = "bold"    // overloaded entire section styling
     }
 }

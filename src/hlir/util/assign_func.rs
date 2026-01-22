@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::hlir::hlir::HLIRPass;
 use crate::hlir::ir_types::{Block, Id, Literal, Op, Type, ValueId};
 
-use crate::ast::{ArgType, FuncAttributes, KeyValue};
+use crate::ast::{ArgType, KeyValue, StyleAttributes};
 
 impl HLIRPass {
     pub fn lower_function_block(&mut self, body: &Vec<crate::ast::Statement>) -> Block {
@@ -108,8 +108,8 @@ impl HLIRPass {
         args
     }
 
-    pub fn handle_attributes(&mut self, attributes: &Vec<KeyValue>, name: &str) -> FuncAttributes {
-        let mut attrs = FuncAttributes::default();
+    pub fn handle_attributes(&mut self, attributes: &Vec<KeyValue>, name: &str) -> StyleAttributes {
+        let mut attrs = StyleAttributes::default();
         for attr in attributes {
             // TODO this is really really bad will probably need to rethink a lot
             // TODO make an internal table for refering what vasr name is to know what var is being used/called on

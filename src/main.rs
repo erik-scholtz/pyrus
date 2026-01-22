@@ -24,13 +24,13 @@ fn main() {
     let data = fs::read_to_string("temp.ink").expect("Should be able to read hosts file");
 
     let tokens = lexer::lex(&data);
-    println!("{:?}", &tokens);
+    // println!("{:?}", &tokens);
 
     let ast = parser::parse(tokens);
-    println!("{:#?}", ast);
+    // println!("{:#?}", ast);
 
-    let hlir_module = hlir::lower(&ast);
-    println!("{:#?}", hlir_module);
+    // let hlir_module = hlir::lower(&ast);
+    // println!("{:#?}", hlir_module);
 
     let now = Instant::now();
     let time = now - last;

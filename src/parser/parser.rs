@@ -1,9 +1,6 @@
 use core::panic;
-use std::any::type_name_of_val;
 
-use crate::ast::{
-    ArgType, Ast, DocumentBlock, Expression, KeyValue, Statement, StyleBlock, TemplateBlock,
-};
+use crate::ast::{Ast, DocumentBlock, Expression, StyleBlock, TemplateBlock};
 use crate::lexer::{TokenKind, TokenStream};
 
 pub fn parse(tokens: TokenStream) -> Ast {
@@ -31,20 +28,24 @@ impl Parser {
         while self.idx < self.toks.kinds.len() {
             match self.current_token_kind() {
                 TokenKind::Template => {
+                    self.expect(TokenKind::Template);
+                    self.expect(TokenKind::LeftBrace);
                     let template_block = self.parse_template_block();
                     template = Some(TemplateBlock {
                         statements: template_block,
                     });
                 }
                 TokenKind::Document => {
+                    self.expect(TokenKind::Document);
+                    self.expect(TokenKind::LeftBrace);
                     let document_block = self.parse_document_block();
                     document = Some(DocumentBlock {
-                        statements: document_block,
+                        elements: document_block,
                     });
                 }
                 TokenKind::Style => {
-                    let style_block = Vec::new();
-                    self.advance();
+                    self.expect(TokenKind::Style);
+                    let style_block = vec![];
                     self.skip_optional_block(); // TODO
                     style = Some(StyleBlock {
                         statements: style_block,
@@ -67,47 +68,7 @@ impl Parser {
         }
     }
 
-    fn parse_binary_expr(&mut self) -> Expression {
-        let left = match self.current_token_kind() {
-            TokenKind::Identifier => {
-                let name = self.current_text();
-                self.advance();
-                Expression::Identifier(name)
-            }
-            _ => panic!(
-                "Parse error: unexpected token in binary expression {:?} at {}:{}",
-                self.current_token_kind(),
-                self.current_token_line(),
-                self.current_token_col()
-            ),
-        };
-
-        while let TokenKind::Plus
-        | TokenKind::Minus
-        | TokenKind::Star
-        | TokenKind::Slash
-        | TokenKind::Equals = self.current_token_kind()
-        {
-            let operator = match self.current_token_kind() {
-                TokenKind::Plus => crate::ast::BinaryOp::Add,
-                TokenKind::Minus => crate::ast::BinaryOp::Subtract,
-                TokenKind::Star => crate::ast::BinaryOp::Multiply,
-                TokenKind::Slash => crate::ast::BinaryOp::Divide,
-                TokenKind::Equals => crate::ast::BinaryOp::Equals,
-                _ => unreachable!(),
-            };
-            self.advance(); // consume operator
-            let right = self.parse_expression();
-            return Expression::Binary {
-                left: Box::new(left),
-                operator,
-                right: Box::new(right),
-            };
-        }
-        left
-    }
-
-    fn parse_expression(&mut self) -> Expression {
+    pub fn parse_expression(&mut self) -> Expression {
         match self.current_token_kind() {
             TokenKind::Minus => {
                 self.advance();
@@ -151,275 +112,43 @@ impl Parser {
         }
     }
 
-    fn parse_statement(&mut self) -> Statement {
-        match self.current_token_kind() {
+    fn parse_binary_expr(&mut self) -> Expression {
+        let left = match self.current_token_kind() {
             TokenKind::Identifier => {
-                if self.toks.kinds.get(self.idx + 1) == Some(&TokenKind::LeftParen) {
-                    // function call
-                    let func_name = self.current_text();
-                    self.advance(); // consume function name
-                    self.expect(TokenKind::LeftParen);
-                    let mut args: Vec<ArgType> = Vec::new();
-                    let mut attributes: Vec<KeyValue> = Vec::new();
-                    while self.current_token_kind() != TokenKind::RightParen {
-                        // function call
-                        let name = self.current_text();
-
-                        // TODO, bad form but woirking for right now
-                        let ty;
-                        if name.starts_with('"') {
-                            ty = "string";
-                        } else if let Ok(_) = name.parse::<i32>() {
-                            ty = "int";
-                        } else if let Ok(_) = name.parse::<f64>() {
-                            ty = "float";
-                        } else {
-                            ty = "var";
-                        }
-                        self.advance(); // consume arg name
-                        if self.current_token_kind() == TokenKind::Equals {
-                            self.advance(); // consume equals
-                            attributes.push(KeyValue {
-                                key: name,
-                                value: Expression::StringLiteral(self.current_text()),
-                            });
-                            self.advance(); // consume comma
-                            continue;
-                        } else if self.current_token_kind() == TokenKind::Comma {
-                            args.push(ArgType {
-                                name: name,
-                                ty: ty.to_string(),
-                            });
-                            self.advance(); // consume comma
-                            continue;
-                        } else if self.current_token_kind() == TokenKind::RightParen {
-                            args.push(ArgType {
-                                name: name,
-                                ty: ty.to_string(),
-                            });
-                            break;
-                        } else {
-                            panic!(
-                                "Parse error: unexpected token in function call arguments. Found: {:?} at {}:{}",
-                                self.current_token_kind(),
-                                self.current_token_line(),
-                                self.current_token_col()
-                            );
-                        }
-                    }
-                    self.expect(TokenKind::RightParen);
-                    return Statement::FunctionCall {
-                        name: func_name,
-                        args: args,
-                        attributes: attributes,
-                    };
-                } else if self.toks.kinds.get(self.idx + 1) == Some(&TokenKind::LeftBrace) {
-                    // default block like "<p>some text</p>" works but in c synax "text { some text }"
-                    self.advance(); // consume name
-                    self.expect(TokenKind::LeftBrace);
-                    let content = self.parse_document_default();
-                    Statement::Paragraph { value: content }
-                } else {
-                    let varname = self.current_text();
-                    self.advance();
-                    self.expect(TokenKind::Equals);
-                    let trimmed = self.current_text().trim_matches('"').to_string();
-                    let expr = match trimmed {
-                        s if s.parse::<i64>().is_ok() => Expression::Int(s.parse().unwrap()),
-                        s if s.parse::<f64>().is_ok() => Expression::Float(s.parse().unwrap()),
-                        s => Expression::StringLiteral(s.to_string()),
-                    };
-                    self.advance();
-                    Statement::DefaultSet {
-                        key: varname,
-                        value: expr,
-                    }
-                }
-            }
-            TokenKind::Let => {
+                let name = self.current_text();
                 self.advance();
-                // TODO handle let differently if needed
-                let varname = self.current_text();
-                self.advance();
-                self.expect(TokenKind::Equals);
-                let expr = self.parse_expression();
-                Statement::VarAssign {
-                    name: varname,
-                    value: expr,
-                }
+                Expression::Identifier(name)
             }
-            TokenKind::Const => {
-                self.advance();
-                // TODO handle const differently if needed
-                let varname = self.current_text();
-                self.advance();
-                self.expect(TokenKind::Equals);
-                let expr = self.parse_expression();
-                Statement::ConstAssign {
-                    name: varname,
-                    value: expr,
-                }
-            }
-            TokenKind::Return => {
-                self.advance(); // consume 'return'
-                if self.current_token_kind() == TokenKind::StringLiteral {
-                    let value = self.current_text();
-                    self.advance();
-                    let trimmed = value.trim_matches('"').to_string();
-                    return Statement::Return(Expression::StringLiteral(trimmed));
-                }
-                let expr: Expression = self.parse_expression();
-                Statement::Return(expr)
-            }
-            // TODO handle if statements
-            // TODO handle for loops
-            // TODO handle while loops
             _ => panic!(
-                "Parse error: unexpected token parsing statement. Found: {:?} at {}:{}",
+                "Parse error: unexpected token in binary expression {:?} at {}:{}",
                 self.current_token_kind(),
                 self.current_token_line(),
                 self.current_token_col()
             ),
+        };
+
+        while let TokenKind::Plus
+        | TokenKind::Minus
+        | TokenKind::Star
+        | TokenKind::Slash
+        | TokenKind::Equals = self.current_token_kind()
+        {
+            let operator = match self.current_token_kind() {
+                TokenKind::Plus => crate::ast::BinaryOp::Add,
+                TokenKind::Minus => crate::ast::BinaryOp::Subtract,
+                TokenKind::Star => crate::ast::BinaryOp::Multiply,
+                TokenKind::Slash => crate::ast::BinaryOp::Divide,
+                TokenKind::Equals => crate::ast::BinaryOp::Equals,
+                _ => unreachable!(),
+            };
+            self.advance(); // consume operator
+            let right = self.parse_expression();
+            return Expression::Binary {
+                left: Box::new(left),
+                operator,
+                right: Box::new(right),
+            };
         }
-    }
-
-    fn parse_func(&mut self) -> Statement {
-        self.expect(TokenKind::Func);
-
-        self.expect(TokenKind::Identifier);
-        let name = self.toks.source[self.toks.ranges[self.idx - 1].clone()].to_string();
-
-        self.expect(TokenKind::LeftParen);
-        let args = self.parse_args();
-
-        let attributes = crate::ast::FuncAttributes::default();
-
-        self.expect(TokenKind::LeftBrace);
-        let body = self.parse_block();
-
-        Statement::FunctionDecl {
-            name,
-            args,
-            attributes,
-            body,
-        }
-    }
-
-    fn parse_args(&mut self) -> Vec<crate::ast::FuncParam> {
-        // TODO rethink this at some point
-        let mut params = Vec::new();
-        loop {
-            match self.current_token_kind() {
-                TokenKind::RightParen => break,
-                TokenKind::Identifier => {
-                    let param_name = self.parse_expression();
-                    self.expect(TokenKind::Colon);
-                    self.expect(TokenKind::Identifier);
-                    let param_type =
-                        self.toks.source[self.toks.ranges[self.idx - 1].clone()].to_string();
-                    params.push(crate::ast::FuncParam {
-                        ty: param_type,
-                        value: param_name,
-                    });
-                    self.match_kind(TokenKind::Comma);
-                }
-                _ => panic!("Expected parameter or ')'"),
-            }
-        }
-        self.expect(TokenKind::RightParen);
-        params
-    }
-
-    fn parse_block(&mut self) -> Vec<Statement> {
-        let mut statements: Vec<Statement> = Vec::new();
-        while self.idx < self.toks.kinds.len() {
-            match self.current_token_kind() {
-                TokenKind::RightBrace => {
-                    self.expect(TokenKind::RightBrace);
-                    break;
-                }
-                TokenKind::Eof => panic!(
-                    "Parse error: unexpected end of file while parsing block at {}:{}",
-                    self.current_token_line(),
-                    self.current_token_col()
-                ),
-                _ => {
-                    let statement = self.parse_statement();
-                    statements.push(statement);
-                }
-            }
-        }
-        statements
-    }
-
-    fn parse_template_block(&mut self) -> Vec<Statement> {
-        self.expect(TokenKind::Template);
-        self.expect(TokenKind::LeftBrace);
-        let mut statements: Vec<Statement> = Vec::new();
-        while self.idx < self.toks.kinds.len() {
-            match self.current_token_kind() {
-                TokenKind::RightBrace => {
-                    self.advance(); // exit block
-                    break;
-                }
-                TokenKind::Func => {
-                    let statement = self.parse_func();
-                    statements.push(statement);
-                }
-                TokenKind::Eof => break,
-                _ => {
-                    let statement = self.parse_statement();
-                    statements.push(statement);
-                }
-            }
-        }
-        statements
-    }
-
-    // TODO handle nested structures properly
-    // TODO handle text formatting properly
-    // TODO handle markdown formatting properly (bold, italics, etc.)
-    // TODO handle code snippets properly
-    fn parse_document_default(&mut self) -> Expression {
-        let mut content = String::new();
-        while self.idx < self.toks.kinds.len() {
-            match self.current_token_kind() {
-                TokenKind::RightBrace => {
-                    self.advance(); // exit block
-                    break;
-                }
-                TokenKind::Eof => panic!(
-                    "Parse error: unexpected end of file while parsing document default at {}:{}",
-                    self.current_token_line(),
-                    self.current_token_col()
-                ),
-                _ => {
-                    content.push_str(&self.current_text());
-                    content.push(' ');
-                    self.advance();
-                }
-            }
-        }
-        Expression::StringLiteral(content)
-    }
-
-    fn parse_document_block(&mut self) -> Vec<Statement> {
-        self.expect(TokenKind::Document);
-        self.expect(TokenKind::LeftBrace);
-        let mut statements: Vec<Statement> = Vec::new();
-        while self.idx < self.toks.kinds.len() {
-            match self.current_token_kind() {
-                TokenKind::RightBrace => {
-                    self.advance(); // exit block
-                    break;
-                }
-                TokenKind::Eof => break,
-                _ => {
-                    let statement = self.parse_statement();
-                    statements.push(statement);
-                }
-            }
-        }
-        statements
+        left
     }
 }

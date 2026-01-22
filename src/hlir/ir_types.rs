@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 
-use crate::ast::FuncAttributes;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Type {
     Int,
@@ -81,7 +79,6 @@ pub enum Op {
         result: Option<ValueId>,
         func: Id,
         args: Vec<ValueId>, // see if this needs to be a CallArg struct
-        attributes: FuncAttributes,
     },
 
     Return {
@@ -124,7 +121,6 @@ pub struct Func {
     pub id: FuncId,
     pub name: String,
     pub args: Vec<Type>,
-    pub attributes: FuncAttributes,
     pub return_type: Option<Type>,
     pub body: Block,
 }

@@ -1,6 +1,14 @@
 use std::collections::HashMap;
 
-use crate::ast::{Ast, FuncAttributes};
+// TODO each element should have a style attribute ID, these IDs are saved
+// in a tree to show where they get overwritten by newer rules, solves
+// the "every object has attributes associated with it" and the
+// "how do I keep track of which attributes are inherited from parent elements"
+//
+// also could solve the HLIR doesnt need style attributes problem
+// this is for IR step
+
+use crate::ast::{Ast, StyleAttributes};
 use crate::hlir::ir_types::{
     Block, Func, FuncId, GlobalId, HLIRModule, Id, Op, TextElement, Type, ValueId,
 };
@@ -73,12 +81,7 @@ impl HLIRPass {
                         hlirmodule.globals.insert(global_id, global);
                         self.add_symbol(name.clone(), Id::Global(global_id));
                     }
-                    crate::ast::Statement::FunctionDecl {
-                        name,
-                        args,
-                        attributes,
-                        body,
-                    } => {
+                    crate::ast::Statement::FunctionDecl { name, args, body } => {
                         let func_id =
                             FuncId(TryInto::<u32>::try_into(hlirmodule.functions.len()).unwrap());
                         let hlir_body = self.lower_function_block(body);
@@ -99,7 +102,6 @@ impl HLIRPass {
                                 id: func_id,
                                 name: name.clone(),
                                 args: arg_list,
-                                attributes: attributes.clone(),
                                 return_type: None, // TODO check return type before setting
                                 body: hlir_body,
                             },
@@ -112,6 +114,8 @@ impl HLIRPass {
     }
 
     fn lower_document_block(&mut self, hlirmodlue: &mut HLIRModule) {
+        // TODO: redo this comepletely
+
         let mut ir_body = Block {
             ops: Vec::new(),
             text: Vec::new(),
@@ -120,53 +124,34 @@ impl HLIRPass {
         self.symbol_table.push(HashMap::new()); // add new scope (document)
 
         if let Some(document) = &self.ast.document {
-            let statements = document.statements.clone();
-            for statement in &statements {
-                match statement {
-                    crate::ast::Statement::ConstAssign { name, value } => {
-                        // TODO, differnciate local and globakl functions
-                        let id = ValueId(TryInto::<u32>::try_into(ir_body.ops.len()).unwrap());
-                        let var = self.assign_local(name.clone(), value.clone(), id);
-                        ir_body.ops.push(var);
-                    }
-                    crate::ast::Statement::VarAssign { name, value } => {
-                        // TODO differnciate local and globakl functions
-                        let id = ValueId(TryInto::<u32>::try_into(ir_body.ops.len()).unwrap());
-                        let var = self.assign_local(name.clone(), value.clone(), id);
-                        ir_body.ops.push(var);
-                    }
-                    crate::ast::Statement::FunctionCall {
-                        // TODO this is really ugly, refac crazy match statements
-                        name,
-                        args,
-                        attributes,
-                    } => {
+            let elements = document.elements.clone();
+            for element in &elements {
+                match element {
+                    crate::ast::DocElement::Call { name, args } => {
                         // find function id of of the name
-                        let func_id = match self.find_symbol(name) {
+                        let func_id = match self.find_symbol(name.as_str()) {
                             Some(id) => Some(id),
                             None => panic!("Function not found: {}", name),
                         };
 
-                        let args = self.handle_args(args, &mut ir_body);
-                        let attributes = self.handle_attributes(attributes, name);
+                        let args = self.handle_args(&args, &mut ir_body);
 
                         ir_body.ops.push(Op::Call {
                             // TODO fix id, func_id is found but is wrong type
                             func: func_id.unwrap(),
                             result: None,
                             args: args,
-                            attributes: attributes,
                         });
                     }
-                    crate::ast::Statement::Paragraph { value } => match value {
-                        crate::ast::Expression::StringLiteral(text) => {
-                            ir_body.text.push(TextElement::Paragraph(text.clone()));
-                            let index = ir_body.text.len() - 1;
-                            ir_body.ops.push(Op::TextRef { index });
-                        }
+                    crate::ast::DocElement::Text {
+                        content,
+                        attributes,
+                    } => {
+                        ir_body.text.push(TextElement::Paragraph(content.clone()));
+                        let index = ir_body.text.len() - 1;
+                        ir_body.ops.push(Op::TextRef { index });
                         // TODO others, detext list, code snippets, images, links, etc
-                        _ => {}
-                    },
+                    }
                     _ => {}
                 }
             }
@@ -178,7 +163,6 @@ impl HLIRPass {
                 id: func_id,
                 name: "__document".to_string(),
                 args: Vec::new(),
-                attributes: FuncAttributes::default(),
                 return_type: None,
                 body: ir_body,
             },
@@ -186,10 +170,6 @@ impl HLIRPass {
 
         self.symbol_table.pop(); // remove scope (document)
     }
-
-    // all var assigns in document and functions flow here
-
-    // all vars from template and defaults flow in here
 
     pub fn add_symbol(&mut self, name: String, id: Id) {
         for scope in self.symbol_table.iter_mut().rev() {

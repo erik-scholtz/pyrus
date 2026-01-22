@@ -1,6 +1,6 @@
 mod ast;
 
 pub use ast::{
-    ArgType, Ast, BinaryOp, DocumentBlock, Expression, FuncAttributes, FuncParam, KeyValue,
-    Statement, StyleBlock, TemplateBlock, UnaryOp,
+    ArgType, Ast, BinaryOp, DocElement, DocumentBlock, Expression, FuncParam, KeyValue, Statement,
+    StyleAttributes, StyleBlock, TemplateBlock, UnaryOp,
 };

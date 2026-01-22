@@ -4,18 +4,35 @@ use std::collections::HashMap;
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum TokenKind {
     // Single-char symbols
-    LeftParen, RightParen,      // ()
-    LeftBrace, RightBrace,      // {}
-    LeftBracket, RightBracket,  // []
-    Comma, Dot, Semicolon, Colon,
-    Plus, Minus, Star, Slash, Percent,
-    Equals, Dollarsign,
+    LeftParen,
+    RightParen, // ()
+    LeftBrace,
+    RightBrace, // {}
+    LeftBracket,
+    RightBracket, // []
+    Comma,
+    Dot,
+    Semicolon,
+    Colon,
+    Plus,
+    Minus,
+    Star,
+    Slash,
+    Percent,
+    Equals,
+    Dollarsign,
 
     // Literals
     Identifier,
     Int,
     Float,
     StringLiteral,
+    Text,
+    Image,
+    List,
+    Table,
+    Section,
+    Link,
 
     // Keywords
     Template,
@@ -39,7 +56,7 @@ impl std::fmt::Display for TokenKind {
         write!(f, "{:?}", self)
     }
 }
- 
+
 fn make_keyword_lookup_table() -> HashMap<&'static str, TokenKind> {
     use TokenKind::*;
 
@@ -55,6 +72,13 @@ fn make_keyword_lookup_table() -> HashMap<&'static str, TokenKind> {
         ("for", For),
         ("while", While),
         ("return", Return),
+        ("text", Text),
+        ("image", Image),
+        ("list", List),
+        ("section", Section),
+        ("image", Image),
+        ("table", Table),
+        ("link", Link),
     ])
 }
 
@@ -123,16 +147,13 @@ impl TokenStream {
 
 #[inline]
 fn is_ident_start(c: u8) -> bool {
-    (c >= b'a' && c <= b'z') ||
-    (c >= b'A' && c <= b'Z') ||
-     c == b'_'
+    (c >= b'a' && c <= b'z') || (c >= b'A' && c <= b'Z') || c == b'_'
 }
 
 #[inline]
 fn is_ident_continue(c: u8) -> bool {
     is_ident_start(c) || (c >= b'0' && c <= b'9')
 }
-
 
 pub fn lex(source: &str) -> TokenStream {
     let mut out = TokenStream::new(source.to_string());
@@ -173,7 +194,7 @@ pub fn lex(source: &str) -> TokenStream {
                 .copied()
                 .unwrap_or(TokenKind::Identifier);
             out.push(kind, start, i, line, col);
-            
+
             col += (i - start) as u32;
             continue;
         }
@@ -182,15 +203,23 @@ pub fn lex(source: &str) -> TokenStream {
         if c.is_ascii_digit() {
             let mut is_float = false;
             i += 1;
-            while i < len && bytes[i].is_ascii_digit() { i += 1; }
+            while i < len && bytes[i].is_ascii_digit() {
+                i += 1;
+            }
 
             if i < len && bytes[i] == b'.' {
                 is_float = true;
                 i += 1;
-                while i < len && bytes[i].is_ascii_digit() { i += 1; }
+                while i < len && bytes[i].is_ascii_digit() {
+                    i += 1;
+                }
             }
 
-            let kind = if is_float { TokenKind::Float } else { TokenKind::Int };
+            let kind = if is_float {
+                TokenKind::Float
+            } else {
+                TokenKind::Int
+            };
             out.push(kind, start, i, line, col);
             col += (i - start) as u32;
             continue;
@@ -200,7 +229,9 @@ pub fn lex(source: &str) -> TokenStream {
         if c == b'"' {
             i += 1; // skip opening quote
             while i < len && bytes[i] != b'"' {
-                if bytes[i] == b'\\' && i + 1 < len { i += 1; }
+                if bytes[i] == b'\\' && i + 1 < len {
+                    i += 1;
+                }
                 i += 1;
             }
             i += 1; // skip closing quote
@@ -213,12 +244,17 @@ pub fn lex(source: &str) -> TokenStream {
         if c == b'/' && i + 1 < len {
             if bytes[i + 1] == b'/' {
                 i += 2;
-                while i < len && bytes[i] != b'\n' { i += 1; }
+                while i < len && bytes[i] != b'\n' {
+                    i += 1;
+                }
                 continue;
             } else if bytes[i + 1] == b'*' {
                 i += 2;
                 while i + 1 < len && !(bytes[i] == b'*' && bytes[i + 1] == b'/') {
-                    if bytes[i] == b'\n' { line += 1; col = 1; }
+                    if bytes[i] == b'\n' {
+                        line += 1;
+                        col = 1;
+                    }
                     i += 1;
                 }
                 i += 2; // skip closing */
@@ -242,7 +278,6 @@ pub fn lex(source: &str) -> TokenStream {
 
     // --- EOF ---
     out.push(TokenKind::Eof, len, len, line, col);
-    
+
     return out;
 }
-

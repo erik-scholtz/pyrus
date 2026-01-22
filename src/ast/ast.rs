@@ -104,27 +104,53 @@ pub enum Statement {
         iterable: Expression,
         body: Vec<Statement>,
     },
-    Return(Expression),
+    Return(DocElement),
     /// name(args) { body... }
     FunctionDecl {
         name: String,
         args: Vec<FuncParam>, // probably empty for now
-        attributes: FuncAttributes,
         body: Vec<Statement>,
     },
-    FunctionCall {
+}
+
+#[derive(Debug, Clone)]
+pub enum DocElement {
+    Text {
+        content: String,
+        attributes: HashMap<String, Expression>,
+    },
+    Image {
+        src: String,
+        attributes: HashMap<String, Expression>,
+    },
+    Table {
+        rows: Vec<Vec<DocElement>>,
+        attributes: HashMap<String, Expression>,
+    },
+    List {
+        items: Vec<DocElement>,
+        attributes: HashMap<String, Expression>,
+    },
+    Code {
+        content: String,
+        attributes: HashMap<String, Expression>,
+    },
+    Call {
         name: String,
         args: Vec<ArgType>,
-        attributes: Vec<KeyValue>,
     },
-    Attributes {
-        attributes: Vec<Statement>,
+    Link {
+        href: String,
+        content: String,
+        attributes: HashMap<String, Expression>,
     },
-    Paragraph {
-        // literally just a block of text
-        value: Expression,
+    Section {
+        elements: Vec<DocElement>,
+        attributes: HashMap<String, Expression>,
     },
 }
+
+// ----------------------------------------------------------------------------------
 
 #[derive(Debug, Clone)]
 pub enum Align {
@@ -141,7 +167,7 @@ pub enum PageBreak {
 }
 
 #[derive(Debug, Clone)]
-pub struct FuncAttributes {
+pub struct StyleAttributes {
     // JS-like identity & styling
     pub id: Option<String>,
     pub class: Vec<String>,
@@ -163,7 +189,7 @@ pub struct FuncAttributes {
     pub role: Option<String>,
 }
 
-impl Default for FuncAttributes {
+impl Default for StyleAttributes {
     fn default() -> Self {
         Self {
             id: None,
@@ -184,11 +210,13 @@ impl Default for FuncAttributes {
     }
 }
 
+// ----------------------------------------------------------------------------------
+
 // Document Block
 
 #[derive(Debug, Clone)]
 pub struct DocumentBlock {
-    pub statements: Vec<Statement>, // TODO document statements
+    pub elements: Vec<DocElement>,
 }
 
 #[derive(Debug, Clone)]

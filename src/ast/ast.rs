@@ -43,6 +43,33 @@ impl Expression {
             _ => None,
         }
     }
+
+    pub fn to_string(&self) -> String {
+        match self {
+            Expression::StringLiteral(s) => s.clone(),
+            Expression::InterpolatedString(parts) => {
+                let mut result = String::new();
+                for part in parts {
+                    match part {
+                        InterpPart::Text(text) => result.push_str(text),
+                        InterpPart::Expression(expr) => result.push_str(&expr.to_string()),
+                    }
+                }
+                result
+            }
+            Expression::Unary {
+                operator,
+                expression,
+            } => match operator {
+                UnaryOp::Negate => format!("-{}", expression.to_string()),
+                UnaryOp::Not => format!("!{}", expression.to_string()),
+            },
+            Expression::StructDefault(name) => format!("default({})", name),
+            Expression::Int(value) => format!("{}", value),
+            Expression::Float(value) => format!("{}", value),
+            _ => "Error".to_string(),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -104,7 +131,9 @@ pub enum Statement {
         iterable: Expression,
         body: Vec<Statement>,
     },
-    Return(DocElement),
+    Return {
+        doc_element: DocElement,
+    },
     /// name(args) { body... }
     FunctionDecl {
         name: String,
@@ -149,68 +178,6 @@ pub enum DocElement {
         attributes: HashMap<String, Expression>,
     },
 }
-
-// ----------------------------------------------------------------------------------
-
-#[derive(Debug, Clone)]
-pub enum Align {
-    Left,
-    Center,
-    Right,
-}
-
-#[derive(Debug, Clone)]
-pub enum PageBreak {
-    Before,
-    After,
-    None,
-}
-
-#[derive(Debug, Clone)]
-pub struct StyleAttributes {
-    // JS-like identity & styling
-    pub id: Option<String>,
-    pub class: Vec<String>,
-    pub style: HashMap<String, String>,
-
-    // Layout
-    pub margin: Option<f32>,
-    pub padding: Option<f32>,
-    pub align: Option<Align>,
-
-    // Rendering control
-    pub hidden: bool,
-    pub condition: Option<bool>, // corresponds to `if=...`
-
-    // Pagination (PDF-specific)
-    pub page_break: PageBreak,
-
-    // Semantics
-    pub role: Option<String>,
-}
-
-impl Default for StyleAttributes {
-    fn default() -> Self {
-        Self {
-            id: None,
-            class: Vec::new(),
-            style: HashMap::new(),
-
-            margin: None,
-            padding: None,
-            align: None,
-
-            hidden: false,
-            condition: None,
-
-            page_break: PageBreak::None,
-
-            role: None,
-        }
-    }
-}
-
-// ----------------------------------------------------------------------------------
 
 // Document Block
 

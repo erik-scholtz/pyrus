@@ -29,8 +29,8 @@ fn main() {
     let ast = parser::parse(tokens);
     // println!("{:#?}", ast);
 
-    // let hlir_module = hlir::lower(&ast);
-    // println!("{:#?}", hlir_module);
+    let hlir_module = hlir::lower(&ast);
+    println!("{:#?}", hlir_module);
 
     let now = Instant::now();
     let time = now - last;

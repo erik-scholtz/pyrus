@@ -1,38 +1,39 @@
 use std::collections::HashMap;
+use std::usize::MAX;
 
 use crate::hlir::hlir::HLIRPass;
-use crate::hlir::ir_types::{Block, Id, Literal, Op, Type, ValueId};
+use crate::hlir::ir_types::{Block, FuncBlock, HLIRModule, Id, Op, ValueId};
 
-use crate::ast::{ArgType, KeyValue, StyleAttributes};
+use crate::ast::ArgType;
 
 impl HLIRPass {
-    pub fn lower_function_block(&mut self, body: &Vec<crate::ast::Statement>) -> Block {
-        let mut ir_body = Block {
+    pub fn lower_function_block(
+        &mut self,
+        body: &Vec<crate::ast::Statement>,
+        hlirmodule: &mut HLIRModule,
+    ) -> FuncBlock {
+        let mut ir_body = FuncBlock {
             ops: Vec::new(),
-            text: Vec::new(),
+            returned_element_ref: MAX, // TODO see if returned value can be an option type
         };
 
         self.symbol_table.push(HashMap::new()); // add new scope (function)
-        let scope_index = self.symbol_table.len() - 1;
 
         for stmt in body {
             match stmt {
                 crate::ast::Statement::ConstAssign { name, value } => {
-                    let id = ValueId(TryInto::<u32>::try_into(ir_body.ops.len()).unwrap());
+                    let id = ValueId(TryInto::<usize>::try_into(ir_body.ops.len()).unwrap());
                     let value = self.assign_local(name.clone(), value.clone(), id);
                     ir_body.ops.push(value);
                     self.add_symbol(name.clone(), Id::Value(id));
                 }
-                crate::ast::Statement::Return(expr) => {
-                    let value_id = ValueId(TryInto::<u32>::try_into(ir_body.ops.len()).unwrap());
-                    ir_body.ops.push(Op::Const {
-                        result: value_id,
-                        literal: Literal::Int(0),
-                        ty: Type::Int,
-                    });
+                crate::ast::Statement::Return { doc_element } => {
+                    hlirmodule.elements.push(doc_element.clone());
+                    let element_id = hlirmodule.elements.len() - 1;
                     ir_body.ops.push(Op::Return {
-                        value: Some(value_id),
+                        doc_element_ref: element_id,
                     });
+                    ir_body.returned_element_ref = element_id;
                 }
                 _ => {
                     todo!("other types not handled yet")
@@ -44,7 +45,11 @@ impl HLIRPass {
         ir_body
     }
 
-    pub fn handle_args(&mut self, arguments: &Vec<ArgType>, ir_body: &mut Block) -> Vec<ValueId> {
+    pub fn handle_args(
+        &mut self,
+        arguments: &Vec<ArgType>,
+        ir_body: &mut FuncBlock,
+    ) -> Vec<ValueId> {
         self.symbol_table.push(HashMap::new()); // adding new table for arg scope
         let mut args = Vec::new();
         for crate::ast::ArgType { name, ty } in arguments {
@@ -70,7 +75,7 @@ impl HLIRPass {
                 }
                 "int" => {
                     let value = name.as_str().parse::<i64>().unwrap();
-                    let id = ValueId(TryInto::<u32>::try_into(ir_body.ops.len()).unwrap());
+                    let id = ValueId(TryInto::<usize>::try_into(ir_body.ops.len()).unwrap());
                     let var_name = "raw_arg_".to_string() + id.to_string().as_str();
                     let var =
                         self.assign_local(var_name.clone(), crate::ast::Expression::Int(value), id);
@@ -79,7 +84,7 @@ impl HLIRPass {
                 }
                 "float" => {
                     let value = name.as_str().parse::<f64>().unwrap();
-                    let id = ValueId(TryInto::<u32>::try_into(ir_body.ops.len()).unwrap());
+                    let id = ValueId(TryInto::<usize>::try_into(ir_body.ops.len()).unwrap());
                     let var_name = "raw_arg_".to_string() + id.to_string().as_str();
                     let var = self.assign_local(
                         var_name.clone(),
@@ -91,7 +96,7 @@ impl HLIRPass {
                 }
                 "string" => {
                     let value = name.as_str().parse::<String>().unwrap();
-                    let id = ValueId(TryInto::<u32>::try_into(ir_body.ops.len()).unwrap());
+                    let id = ValueId(TryInto::<usize>::try_into(ir_body.ops.len()).unwrap());
                     let var_name = "raw_arg_".to_string() + id.to_string().as_str();
                     let var = self.assign_local(
                         var_name.clone(),
@@ -106,17 +111,5 @@ impl HLIRPass {
         }
         self.symbol_table.pop();
         args
-    }
-
-    pub fn handle_attributes(&mut self, attributes: &Vec<KeyValue>, name: &str) -> StyleAttributes {
-        let mut attrs = StyleAttributes::default();
-        for attr in attributes {
-            // TODO this is really really bad will probably need to rethink a lot
-            // TODO make an internal table for refering what vasr name is to know what var is being used/called on
-            match attr {
-                crate::ast::KeyValue { key, value } => {}
-            }
-        }
-        attrs
     }
 }

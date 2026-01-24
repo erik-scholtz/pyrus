@@ -72,7 +72,9 @@ impl Parser {
                 self.advance(); // consume 'return'
                 // TODO see if there is a way to handle if a function call is from document or from template
                 let return_value = self.parse_document_element();
-                Statement::Return(return_value)
+                Statement::Return {
+                    doc_element: return_value,
+                }
             }
             // TODO handle if statements
             // TODO handle for loops
@@ -110,7 +112,8 @@ impl Parser {
                 TokenKind::Identifier => {
                     let param_name = self.parse_expression();
                     self.expect(TokenKind::Colon);
-                    let param_type = self.expect(TokenKind::Identifier).to_string();
+                    let param_type = self.current_text();
+                    self.advance(); // TODO have a check here to make sure type is valid
                     params.push(crate::ast::FuncParam {
                         ty: param_type,
                         value: param_name,

@@ -8,9 +8,9 @@ use std::collections::HashMap;
 // also could solve the HLIR doesnt need style attributes problem
 // this is for IR step
 
-use crate::ast::{Ast, StyleAttributes};
+use crate::ast::{Ast, DocElement, Statement};
 use crate::hlir::ir_types::{
-    Block, Func, FuncId, GlobalId, HLIRModule, Id, Op, TextElement, Type, ValueId,
+    AttributeNode, AttributeTree, Func, FuncBlock, FuncId, GlobalId, HLIRModule, Id, Op, Type,
 };
 
 pub fn lower(ast: &Ast) -> HLIRModule {
@@ -34,6 +34,8 @@ impl HLIRPass {
         let mut hlirmodule = HLIRModule {
             globals: HashMap::new(),
             functions: HashMap::new(),
+            attributes: AttributeTree::new(),
+            elements: Vec::new(),
         };
 
         self.symbol_table.push(HashMap::new()); // add new scope (global)
@@ -56,9 +58,9 @@ impl HLIRPass {
             let statements = template.statements.clone();
             for statement in &statements {
                 match statement {
-                    crate::ast::Statement::DefaultSet { key, value } => {
+                    Statement::DefaultSet { key, value } => {
                         let global_id =
-                            GlobalId(TryInto::<u32>::try_into(hlirmodule.globals.len()).unwrap());
+                            GlobalId(TryInto::<usize>::try_into(hlirmodule.globals.len()).unwrap());
                         let global = self.assign_global(
                             "__".to_string() + &key.clone(),
                             value.clone(),
@@ -67,24 +69,24 @@ impl HLIRPass {
                         hlirmodule.globals.insert(global_id, global);
                         self.add_symbol(key.clone(), Id::Global(global_id));
                     }
-                    crate::ast::Statement::ConstAssign { name, value } => {
+                    Statement::ConstAssign { name, value } => {
                         let global_id =
-                            GlobalId(TryInto::<u32>::try_into(hlirmodule.globals.len()).unwrap());
+                            GlobalId(TryInto::<usize>::try_into(hlirmodule.globals.len()).unwrap());
                         let global = self.assign_global(name.clone(), value.clone(), global_id); // TODO see if I can get rid of clone
                         hlirmodule.globals.insert(global_id, global);
                         self.add_symbol(name.clone(), Id::Global(global_id));
                     }
-                    crate::ast::Statement::VarAssign { name, value } => {
+                    Statement::VarAssign { name, value } => {
                         let global_id =
-                            GlobalId(TryInto::<u32>::try_into(hlirmodule.globals.len()).unwrap());
+                            GlobalId(TryInto::<usize>::try_into(hlirmodule.globals.len()).unwrap());
                         let global = self.assign_global(name.clone(), value.clone(), global_id); // TODO see if I can get rid of clone
                         hlirmodule.globals.insert(global_id, global);
                         self.add_symbol(name.clone(), Id::Global(global_id));
                     }
-                    crate::ast::Statement::FunctionDecl { name, args, body } => {
+                    Statement::FunctionDecl { name, args, body } => {
                         let func_id =
-                            FuncId(TryInto::<u32>::try_into(hlirmodule.functions.len()).unwrap());
-                        let hlir_body = self.lower_function_block(body);
+                            FuncId(TryInto::<usize>::try_into(hlirmodule.functions.len()).unwrap());
+                        let hlir_body = self.lower_function_block(body, hlirmodule);
                         self.add_symbol(name.clone(), Id::Func(func_id)); // adds function name to symbol table
                         let mut arg_list = Vec::new();
                         for arg in args {
@@ -113,12 +115,12 @@ impl HLIRPass {
         }
     }
 
-    fn lower_document_block(&mut self, hlirmodlue: &mut HLIRModule) {
+    fn lower_document_block(&mut self, hlirmodule: &mut HLIRModule) {
         // TODO: redo this comepletely
 
-        let mut ir_body = Block {
+        let mut ir_body = FuncBlock {
             ops: Vec::new(),
-            text: Vec::new(),
+            returned_element_ref: 0,
         };
 
         self.symbol_table.push(HashMap::new()); // add new scope (document)
@@ -147,17 +149,28 @@ impl HLIRPass {
                         content,
                         attributes,
                     } => {
-                        ir_body.text.push(TextElement::Paragraph(content.clone()));
-                        let index = ir_body.text.len() - 1;
-                        ir_body.ops.push(Op::TextRef { index });
+                        hlirmodule.elements.push(DocElement::Text {
+                            content: content.to_string(),
+                            attributes: attributes.clone(),
+                        });
+                        let attribute_node = AttributeNode::new_with_attributes(
+                            attributes,
+                            hlirmodule.attributes.size,
+                        );
+                        let attributes_ref = hlirmodule.attributes.add_attribute(attribute_node);
+                        let index = hlirmodule.elements.len() - 1;
+                        ir_body.ops.push(Op::DocElementEmit {
+                            index,
+                            attributes_ref,
+                        });
                         // TODO others, detext list, code snippets, images, links, etc
                     }
                     _ => {}
                 }
             }
         }
-        let func_id = FuncId(TryInto::<u32>::try_into(hlirmodlue.functions.len()).unwrap());
-        hlirmodlue.functions.insert(
+        let func_id = FuncId(TryInto::<usize>::try_into(hlirmodule.functions.len()).unwrap());
+        hlirmodule.functions.insert(
             func_id,
             Func {
                 id: func_id,

@@ -45,8 +45,11 @@ impl Parser {
                 }
                 TokenKind::Style => {
                     self.expect(TokenKind::Style);
-                    let style_block = vec![];
-                    self.skip_optional_block(); // TODO
+                    self.expect(TokenKind::LeftBrace);
+                    let style_block = self.parse_style_block();
+                    // self.skip_optional_block();
+                    // let style_block = vec![];
+
                     style = Some(StyleBlock {
                         statements: style_block,
                     });

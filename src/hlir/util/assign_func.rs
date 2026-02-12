@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::usize::MAX;
 
 use crate::hlir::hlir::HLIRPass;
-use crate::hlir::ir_types::{Block, FuncBlock, HLIRModule, Id, Op, ValueId};
+use crate::hlir::ir_types::{FuncBlock, HLIRModule, Id, Op, ValueId};
 
 use crate::ast::ArgType;
 

@@ -182,13 +182,19 @@ pub enum DocElement {
 // Document Block
 
 #[derive(Debug, Clone)]
+pub struct StyleRule {
+    pub selector_list: Vec<String>,
+    pub declaration_block: Vec<KeyValue>,
+}
+
+#[derive(Debug, Clone)]
 pub struct DocumentBlock {
     pub elements: Vec<DocElement>,
 }
 
 #[derive(Debug, Clone)]
 pub struct StyleBlock {
-    pub statements: Vec<Statement>, // TODO style statements
+    pub statements: Vec<StyleRule>, // TODO style statements
 }
 
 #[derive(Debug, Clone)]

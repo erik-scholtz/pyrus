@@ -64,12 +64,17 @@ style {
     body {
         font-family = "Helvetica"
         color = "black"
-        margin = 1.-1
+        margin = 1
     }
 
-    .intro {
+    .intro, .more_complex_section {
         font-size = 23          // overloaded font size
         font-weight = "bold"    // overloaded entire section styling
+    }
+
+    #listelement {
+        font-size = 18
+        font-weight = "normal"
     }
 }
 

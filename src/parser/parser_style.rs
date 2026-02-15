@@ -1,6 +1,8 @@
+use std::path::MAIN_SEPARATOR_STR;
+
 use crate::parser::parser::Parser;
 
-use crate::ast::{KeyValue, StyleRule};
+use crate::ast::{KeyValue, Selector, StyleRule};
 use crate::lexer::TokenKind;
 
 impl Parser {
@@ -30,7 +32,7 @@ impl Parser {
         }
     }
 
-    pub fn parse_selector_list(&mut self) -> Vec<String> {
+    pub fn parse_selector_list(&mut self) -> Vec<Selector> {
         let mut selectors = Vec::new();
         while self.idx < self.toks.kinds.len() {
             match self.current_token_kind() {
@@ -43,7 +45,20 @@ impl Parser {
                 }
                 TokenKind::Eof => break,
                 _ => {
-                    let selector = self.current_text().to_string(); // TODO maybe do a check and see if there is a valid binding or if it is unused here
+                    let selector = match self.current_text().as_str() {
+                        "." => {
+                            self.advance();
+                            Selector::Class(self.current_text().to_string())
+                        }
+                        "#" => {
+                            self.advance();
+                            Selector::Id(self.current_text().to_string())
+                        }
+                        _ => {
+                            // TODO: have a check to make sure the type is valid CSS type
+                            Selector::Type(self.current_text().to_string())
+                        }
+                    };
                     selectors.push(selector);
                     self.advance();
                 }
@@ -67,7 +82,7 @@ impl Parser {
                 _ => {
                     let mut property: String = String::new();
                     while self.current_token_kind() != TokenKind::Equals {
-                        property.push_str(&self.current_text().chars().next().unwrap().to_string());
+                        property.push_str(&self.current_text().to_string());
                         self.advance();
                     }
                     self.advance(); // skip equals

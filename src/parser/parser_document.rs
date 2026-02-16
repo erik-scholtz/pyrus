@@ -108,8 +108,19 @@ impl Parser {
     fn parse_document_text_content(&mut self) -> String {
         let mut content = String::new();
         while self.current_token_kind() != TokenKind::RightBrace {
-            content.push_str(&self.current_text());
+            let text = self.current_text();
+            // Strip quotes from string literals
+            let text = if self.current_token_kind() == TokenKind::StringLiteral {
+                text.trim_matches('"').to_string()
+            } else {
+                text
+            };
+            content.push_str(&text);
             self.advance();
+            // Add a space after each token (except before the closing brace)
+            if self.current_token_kind() != TokenKind::RightBrace {
+                content.push(' ');
+            }
         }
         content
     }

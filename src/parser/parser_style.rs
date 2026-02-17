@@ -1,5 +1,3 @@
-use std::path::MAIN_SEPARATOR_STR;
-
 use crate::parser::parser::Parser;
 
 use crate::ast::{KeyValue, Selector, StyleRule};
@@ -26,10 +24,7 @@ impl Parser {
     pub fn parse_style_rule(&mut self) -> StyleRule {
         let selectors = self.parse_selector_list();
         let declarations = self.parse_style_declarations();
-        StyleRule {
-            selector_list: selectors,
-            declaration_block: declarations,
-        }
+        StyleRule::new(selectors, declarations)
     }
 
     pub fn parse_selector_list(&mut self) -> Vec<Selector> {

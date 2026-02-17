@@ -22,7 +22,7 @@ template {
             text {
                 "This is another text element"
             }
-            text {
+            text (id="listelement"){
                 "This is a third text element"
             }
             list {

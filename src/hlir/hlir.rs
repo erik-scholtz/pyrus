@@ -8,9 +8,10 @@ use std::collections::HashMap;
 // also could solve the HLIR doesnt need style attributes problem
 // this is for IR step
 
-use crate::ast::{Ast, DocElement, Statement};
+use crate::ast::{Ast, DocElement, Expression, Statement};
 use crate::hlir::ir_types::{
-    AttributeNode, AttributeTree, Func, FuncBlock, FuncId, GlobalId, HLIRModule, Id, Op, Type,
+    AttributeNode, AttributeTree, ElementMetadata, Func, FuncBlock, FuncId, GlobalId, HLIRModule,
+    Id, Op, Type,
 };
 
 pub fn lower(ast: &Ast) -> HLIRModule {
@@ -35,12 +36,20 @@ impl HLIRPass {
             globals: HashMap::new(),
             functions: HashMap::new(),
             attributes: AttributeTree::new(),
+            css_rules: Vec::new(),
             elements: Vec::new(),
+            element_metadata: Vec::new(),
         };
 
         self.symbol_table.push(HashMap::new()); // add new scope (global)
 
         self.lower_template_block(&mut hlirmodule);
+
+        // Store CSS rules from AST
+        if let Some(style) = &self.ast.style {
+            hlirmodule.css_rules = style.statements.clone();
+        }
+
         self.lower_document_block(&mut hlirmodule);
 
         self.symbol_table.pop(); // remove scope (global)
@@ -52,7 +61,7 @@ impl HLIRPass {
         // TODO clean this up more using the let something = match {} pattern
         // all global, default and function declarations
         // handle defaults and globals inside this function call since they are small
-        let scope_index = self.symbol_table.len() - 1;
+        let _scope_index = self.symbol_table.len() - 1;
 
         if let Some(template) = &self.ast.template {
             let statements = template.statements.clone();
@@ -116,8 +125,6 @@ impl HLIRPass {
     }
 
     fn lower_document_block(&mut self, hlirmodule: &mut HLIRModule) {
-        // TODO: redo this comepletely
-
         let mut ir_body = FuncBlock {
             ops: Vec::new(),
             returned_element_ref: 0,
@@ -128,45 +135,12 @@ impl HLIRPass {
         if let Some(document) = &self.ast.document {
             let elements = document.elements.clone();
             for element in &elements {
-                match element {
-                    crate::ast::DocElement::Call { name, args } => {
-                        // find function id of of the name
-                        let func_id = match self.find_symbol(name.as_str()) {
-                            Some(id) => Some(id),
-                            None => panic!("Function not found: {}", name),
-                        };
-
-                        let args = self.handle_args(&args, &mut ir_body);
-
-                        ir_body.ops.push(Op::Call {
-                            // TODO fix id, func_id is found but is wrong type
-                            func: func_id.unwrap(),
-                            result: None,
-                            args: args,
-                        });
-                    }
-                    crate::ast::DocElement::Text {
-                        content,
-                        attributes,
-                    } => {
-                        hlirmodule.elements.push(DocElement::Text {
-                            content: content.to_string(),
-                            attributes: attributes.clone(),
-                        });
-                        let attribute_node = AttributeNode::new_with_attributes(
-                            attributes,
-                            hlirmodule.attributes.size,
-                        );
-                        let attributes_ref = hlirmodule.attributes.add_attribute(attribute_node);
-                        let index = hlirmodule.elements.len() - 1;
-                        ir_body.ops.push(Op::DocElementEmit {
-                            index,
-                            attributes_ref,
-                        });
-                        // TODO others, detext list, code snippets, images, links, etc
-                    }
-                    _ => {}
-                }
+                self.lower_document_element(
+                    element,
+                    hlirmodule,
+                    &mut ir_body,
+                    None, // No parent for top-level elements
+                );
             }
         }
         let func_id = FuncId(TryInto::<usize>::try_into(hlirmodule.functions.len()).unwrap());
@@ -184,9 +158,141 @@ impl HLIRPass {
         self.symbol_table.pop(); // remove scope (document)
     }
 
+    fn lower_document_element(
+        &mut self,
+        element: &crate::ast::DocElement,
+        hlirmodule: &mut HLIRModule,
+        ir_body: &mut FuncBlock,
+        parent_index: Option<usize>,
+    ) {
+        match element {
+            crate::ast::DocElement::Call { name, args } => {
+                let func_id = match self.find_symbol(name.as_str()) {
+                    Some(id) => Some(id),
+                    None => panic!("Function not found: {}", name),
+                };
+
+                let arg_value_ids = self.handle_args(args, ir_body);
+                ir_body.ops.push(Op::Call {
+                    func: func_id.unwrap(),
+                    result: None,
+                    args: arg_value_ids,
+                });
+            }
+            crate::ast::DocElement::Text {
+                content,
+                attributes,
+            } => {
+                hlirmodule.elements.push(DocElement::Text {
+                    content: content.to_string(),
+                    attributes: attributes.clone(),
+                });
+
+                let (id, classes) = self.extract_id_and_classes(attributes);
+                let element_type = "text".to_string();
+                let attribute_node =
+                    AttributeNode::new_with_attributes(attributes, hlirmodule.attributes.size);
+                let attributes_ref = hlirmodule.attributes.add_attribute(attribute_node);
+                hlirmodule.element_metadata.push(ElementMetadata {
+                    id,
+                    classes,
+                    element_type,
+                    parent: parent_index,
+                    attributes_ref,
+                });
+
+                let index = hlirmodule.elements.len() - 1;
+                ir_body.ops.push(Op::DocElementEmit {
+                    index,
+                    attributes_ref,
+                });
+            }
+            crate::ast::DocElement::Section {
+                elements: section_elements,
+                attributes,
+            } => {
+                hlirmodule.elements.push(DocElement::Section {
+                    elements: section_elements.clone(),
+                    attributes: attributes.clone(),
+                });
+
+                let (id, classes) = self.extract_id_and_classes(attributes);
+                let element_type = "section".to_string();
+                let attribute_node =
+                    AttributeNode::new_with_attributes(attributes, hlirmodule.attributes.size);
+                let attributes_ref = hlirmodule.attributes.add_attribute(attribute_node);
+                hlirmodule.element_metadata.push(ElementMetadata {
+                    id,
+                    classes,
+                    element_type,
+                    parent: parent_index,
+                    attributes_ref,
+                });
+
+                let index = hlirmodule.elements.len() - 1;
+                ir_body.ops.push(Op::DocElementEmit {
+                    index,
+                    attributes_ref,
+                });
+
+                // Recursively lower child elements with this section as parent
+                for child in section_elements {
+                    self.lower_document_element(child, hlirmodule, ir_body, Some(index));
+                }
+            }
+            crate::ast::DocElement::List { items, attributes } => {
+                hlirmodule.elements.push(DocElement::List {
+                    items: items.clone(),
+                    attributes: attributes.clone(),
+                });
+
+                let (id, classes) = self.extract_id_and_classes(attributes);
+                let element_type = "list".to_string();
+                let attribute_node =
+                    AttributeNode::new_with_attributes(attributes, hlirmodule.attributes.size);
+                let attributes_ref = hlirmodule.attributes.add_attribute(attribute_node);
+                hlirmodule.element_metadata.push(ElementMetadata {
+                    id,
+                    classes,
+                    element_type,
+                    parent: parent_index,
+                    attributes_ref,
+                });
+
+                let index = hlirmodule.elements.len() - 1;
+                ir_body.ops.push(Op::DocElementEmit {
+                    index,
+                    attributes_ref,
+                });
+
+                // Recursively lower list items with this list as parent
+                for child in items {
+                    self.lower_document_element(child, hlirmodule, ir_body, Some(index));
+                }
+            }
+            // TODO: Handle Image, Code, Link, Table similarly
+            _ => {}
+        }
+    }
+
+    /// Extract id and classes from element attributes
+    fn extract_id_and_classes(
+        &self,
+        attributes: &HashMap<String, Expression>,
+    ) -> (Option<String>, Vec<String>) {
+        let id = attributes.get("id").map(|e| e.to_string());
+
+        let classes = attributes
+            .get("class")
+            .map(|e| e.to_string().split_whitespace().map(String::from).collect())
+            .unwrap_or_default();
+
+        (id, classes)
+    }
+
     pub fn add_symbol(&mut self, name: String, id: Id) {
         for scope in self.symbol_table.iter_mut().rev() {
-            if let Some(symbol) = scope.get(&name) {
+            if let Some(_symbol) = scope.get(&name) {
                 // TODO check if the the ids match, if there is a function defined with the same name as a variable then it should be ok or vice versa
                 panic!("Symbol {} already exists", name);
             }

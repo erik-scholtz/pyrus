@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::str::FromStr;
 
-use crate::ast::{DocElement, Expression};
+use crate::ast::{DocElement, Expression, StyleRule};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Type {
@@ -135,11 +135,22 @@ pub struct Block {
 }
 
 #[derive(Debug, Clone)]
+pub struct ElementMetadata {
+    pub id: Option<String>,
+    pub classes: Vec<String>,
+    pub element_type: String,
+    pub parent: Option<usize>, // Index into elements vector
+    pub attributes_ref: usize, // Index into AttributeTree
+}
+
+#[derive(Debug, Clone)]
 pub struct HLIRModule {
     pub globals: HashMap<GlobalId, Global>, // TODO eventually remove IDs from actual struct and just refer to them (I think)
     pub functions: HashMap<FuncId, Func>,
     pub attributes: AttributeTree,
+    pub css_rules: Vec<StyleRule>, // Parsed CSS rules (unapplied)
     pub elements: Vec<DocElement>,
+    pub element_metadata: Vec<ElementMetadata>, // Parallel to elements, for CSS matching
 }
 
 #[derive(Debug, Clone)]
@@ -149,7 +160,7 @@ pub struct AttributeTree {
 }
 
 impl AttributeTree {
-    // TODO, will need to rething this ID stuff at some point but working for now
+    // TODO, will need to rethink this ID stuff at some point but working for now
     pub fn new() -> Self {
         Self {
             root: AttributeNode::new(),
@@ -162,13 +173,22 @@ impl AttributeTree {
         self.size += 1;
         self.root.add_child(attributes, id)
     }
+
+    pub fn find_node(&self, id: usize) -> Option<&AttributeNode> {
+        self.root.find_node_recursive(id)
+    }
+
+    pub fn find_node_mut(&mut self, id: usize) -> Option<&mut AttributeNode> {
+        self.root.find_node_mut_recursive(id)
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct AttributeNode {
-    pub parent: Option<usize>, // is this a pointer to another AttributeNode?
+    pub parent: Option<usize>, // Pointer to parent AttributeNode
     pub id: usize,
-    pub value: StyleAttributes,
+    pub inline: StyleAttributes, // Inline styles from element attributes
+    pub computed: StyleAttributes, // Final computed styles after CSS resolution
     pub children: HashMap<usize, AttributeNode>,
 }
 
@@ -177,7 +197,8 @@ impl AttributeNode {
         Self {
             parent: None,
             id: 1,
-            value: StyleAttributes::default(),
+            inline: StyleAttributes::default(),
+            computed: StyleAttributes::default(),
             children: HashMap::new(),
         }
     }
@@ -186,7 +207,8 @@ impl AttributeNode {
         Self {
             parent: Some(parent_id),
             id: parent_id + 1,
-            value: StyleAttributes::new_with_attributes(attributes),
+            inline: StyleAttributes::new_with_attributes(attributes),
+            computed: StyleAttributes::default(),
             children: HashMap::new(),
         }
     }
@@ -195,6 +217,60 @@ impl AttributeNode {
         let id = parent_id + 1;
         self.children.insert(id, child);
         id
+    }
+
+    fn find_node_recursive(&self, target_id: usize) -> Option<&AttributeNode> {
+        if self.id == target_id {
+            return Some(self);
+        }
+        for child in self.children.values() {
+            if let Some(found) = child.find_node_recursive(target_id) {
+                return Some(found);
+            }
+        }
+        None
+    }
+
+    fn find_node_mut_recursive(&mut self, target_id: usize) -> Option<&mut AttributeNode> {
+        if self.id == target_id {
+            return Some(self);
+        }
+        for child in self.children.values_mut() {
+            if let Some(found) = child.find_node_mut_recursive(target_id) {
+                return Some(found);
+            }
+        }
+        None
+    }
+
+    pub fn is_inherited_property(property: &str) -> bool {
+        matches!(
+            property,
+            "color"
+                | "font-family"
+                | "font-size"
+                | "font-weight"
+                | "font-style"
+                | "line-height"
+                | "text-align"
+                | "visibility"
+        )
+    }
+
+    pub fn get_effective_value(&self, property: &str, tree: &AttributeTree) -> Option<String> {
+        if let Some(val) = self.computed.get(property) {
+            return Some(val);
+        }
+
+        if Self::is_inherited_property(property) {
+            if let Some(parent_id) = self.parent {
+                if let Some(parent_node) = tree.find_node(parent_id) {
+                    return parent_node.get_effective_value(property, tree);
+                }
+            }
+        }
+
+        None
     }
 }
 
@@ -220,7 +296,7 @@ impl FromStr for Align {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PageBreak {
     Before,
     After,
@@ -242,24 +318,19 @@ impl FromStr for PageBreak {
 
 #[derive(Debug, Clone)]
 pub struct StyleAttributes {
-    // JS-like identity & styling
     pub id: Option<String>,
     pub class: Vec<String>,
     pub style: HashMap<String, String>,
 
-    // Layout
     pub margin: Option<f32>,
     pub padding: Option<f32>,
     pub align: Option<Align>,
 
-    // Rendering control
     pub hidden: bool,
     pub condition: Option<bool>, // corresponds to `if=...`
 
-    // Pagination (PDF-specific)
     pub page_break: PageBreak,
 
-    // Semantics
     pub role: Option<String>,
 }
 
@@ -280,6 +351,123 @@ impl Default for StyleAttributes {
             page_break: PageBreak::None,
 
             role: None,
+        }
+    }
+}
+
+impl StyleAttributes {
+    pub fn get(&self, property: &str) -> Option<String> {
+        if let Some(val) = self.style.get(property) {
+            return Some(val.clone());
+        }
+
+        match property {
+            "id" => self.id.clone(),
+            "margin" => self.margin.map(|v| v.to_string()),
+            "padding" => self.padding.map(|v| v.to_string()),
+            "align" => self.align.as_ref().map(|v| format!("{:?}", v)),
+            "hidden" => Some(self.hidden.to_string()),
+            "page_break" => Some(format!("{:?}", self.page_break).to_lowercase()),
+            "role" => self.role.clone(),
+            _ => None,
+        }
+    }
+
+    pub fn set(&mut self, property: &str, value: String) {
+        match property {
+            "id" => self.id = Some(value),
+            "margin" => {
+                if let Ok(v) = value.parse() {
+                    self.margin = Some(v);
+                }
+            }
+            "padding" => {
+                if let Ok(v) = value.parse() {
+                    self.padding = Some(v);
+                }
+            }
+            "align" => {
+                if let Ok(v) = value.parse::<Align>() {
+                    self.align = Some(v);
+                }
+            }
+            "hidden" => {
+                self.hidden = value.parse().unwrap_or(false);
+            }
+            "page_break" => {
+                self.page_break = value.parse().unwrap_or(PageBreak::None);
+            }
+            "role" => self.role = Some(value),
+            _ => {
+                // Unknown property goes into the style map
+                self.style.insert(property.to_string(), value);
+            }
+        }
+    }
+
+    pub fn merge(&mut self, other: &StyleAttributes) {
+        // Merge style map
+        for (key, val) in &other.style {
+            if !self.style.contains_key(key) {
+                self.style.insert(key.clone(), val.clone());
+            }
+        }
+
+        // Merge known properties (only if not already set)
+        if self.id.is_none() && other.id.is_some() {
+            self.id = other.id.clone();
+        }
+        if self.class.is_empty() && !other.class.is_empty() {
+            self.class = other.class.clone();
+        }
+        if self.margin.is_none() {
+            self.margin = other.margin;
+        }
+        if self.padding.is_none() {
+            self.padding = other.padding;
+        }
+        if self.align.is_none() {
+            self.align = other.align.clone();
+        }
+        if self.role.is_none() {
+            self.role = other.role.clone();
+        }
+        // boolean flags: use OR semantics
+        self.hidden = self.hidden || other.hidden;
+        // page_break: 'Before' and 'After' override 'None'
+        if self.page_break == PageBreak::None {
+            self.page_break = other.page_break.clone();
+        }
+    }
+
+    pub fn apply_inherited(&mut self, parent: &StyleAttributes) {
+        if self.style.get("font-family").is_none() {
+            if let Some(val) = parent.style.get("font-family") {
+                self.style.insert("font-family".to_string(), val.clone());
+            }
+        }
+        if self.style.get("font-size").is_none() {
+            if let Some(val) = parent.style.get("font-size") {
+                self.style.insert("font-size".to_string(), val.clone());
+            }
+        }
+        if self.style.get("font-weight").is_none() {
+            if let Some(val) = parent.style.get("font-weight") {
+                self.style.insert("font-weight".to_string(), val.clone());
+            }
+        }
+        if self.style.get("color").is_none() {
+            if let Some(val) = parent.style.get("color") {
+                self.style.insert("color".to_string(), val.clone());
+            }
+        }
+        if self.style.get("line-height").is_none() {
+            if let Some(val) = parent.style.get("line-height") {
+                self.style.insert("line-height".to_string(), val.clone());
+            }
+        }
+        if self.align.is_none() {
+            self.align = parent.align.clone();
         }
     }
 }

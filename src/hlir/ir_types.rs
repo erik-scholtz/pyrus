@@ -83,6 +83,10 @@ pub enum Op {
         index: usize,
         attributes_ref: usize,
     },
+    StringConcat {
+        result: ValueId,
+        parts: Vec<ValueId>,
+    },
 }
 
 #[derive(Debug, Clone)]

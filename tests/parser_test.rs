@@ -1,4 +1,4 @@
-use pyrus::ast::{BinaryOp, DocElement, Expression, Statement, UnaryOp};
+use pyrus::ast::{BinaryOp, DocElement, Expression, InterpPart, Statement, UnaryOp};
 use pyrus::lexer::lex;
 use pyrus::parser::parse;
 
@@ -437,4 +437,127 @@ fn test_parse_nested_template_and_document() {
 
     let doc = ast.document.unwrap();
     assert_eq!(doc.elements.len(), 1);
+}
+
+#[test]
+fn test_parse_string_interpolation_simple() {
+    let source = r#"template { let msg = "Hello, {name}!" }"#;
+    let tokens = lex(source);
+    let ast = parse(tokens);
+    let template = ast.template.unwrap();
+
+    match &template.statements[0] {
+        Statement::VarAssign { value, .. } => match value {
+            Expression::InterpolatedString(parts) => {
+                assert_eq!(parts.len(), 3);
+                match &parts[0] {
+                    InterpPart::Text(text) => assert_eq!(text, "Hello, "),
+                    _ => panic!("Expected Text part"),
+                }
+                match &parts[1] {
+                    InterpPart::Expression(expr) => match expr {
+                        Expression::Identifier(id) => assert_eq!(id, "name"),
+                        _ => panic!("Expected Identifier expression"),
+                    },
+                    _ => panic!("Expected Expression part"),
+                }
+                match &parts[2] {
+                    InterpPart::Text(text) => assert_eq!(text, "!"),
+                    _ => panic!("Expected Text part"),
+                }
+            }
+            _ => panic!("Expected InterpolatedString, got {:?}", value),
+        },
+        _ => panic!("Expected VarAssign statement"),
+    }
+}
+
+#[test]
+fn test_parse_string_interpolation_multiple() {
+    let source = r#"template { let msg = "{greeting}, {name}!" }"#;
+    let tokens = lex(source);
+    let ast = parse(tokens);
+    let template = ast.template.unwrap();
+
+    match &template.statements[0] {
+        Statement::VarAssign { value, .. } => match value {
+            Expression::InterpolatedString(parts) => {
+                assert_eq!(parts.len(), 4);
+                // {greeting}
+                match &parts[0] {
+                    InterpPart::Expression(expr) => match expr {
+                        Expression::Identifier(id) => assert_eq!(id, "greeting"),
+                        _ => panic!("Expected Identifier"),
+                    },
+                    _ => panic!("Expected Expression part"),
+                }
+                // ,
+                match &parts[1] {
+                    InterpPart::Text(text) => assert_eq!(text, ", "),
+                    _ => panic!("Expected Text part"),
+                }
+                // {name}
+                match &parts[2] {
+                    InterpPart::Expression(expr) => match expr {
+                        Expression::Identifier(id) => assert_eq!(id, "name"),
+                        _ => panic!("Expected Identifier"),
+                    },
+                    _ => panic!("Expected Expression part"),
+                }
+                // !
+                match &parts[3] {
+                    InterpPart::Text(text) => assert_eq!(text, "!"),
+                    _ => panic!("Expected Text part"),
+                }
+            }
+            _ => panic!("Expected InterpolatedString"),
+        },
+        _ => panic!("Expected VarAssign statement"),
+    }
+}
+
+#[test]
+fn test_parse_string_interpolation_with_number() {
+    let source = r#"template { let msg = "Count: {count}" }"#;
+    let tokens = lex(source);
+    let ast = parse(tokens);
+    let template = ast.template.unwrap();
+
+    match &template.statements[0] {
+        Statement::VarAssign { value, .. } => match value {
+            Expression::InterpolatedString(parts) => {
+                assert_eq!(parts.len(), 2);
+                match &parts[0] {
+                    InterpPart::Text(text) => assert_eq!(text, "Count: "),
+                    _ => panic!("Expected Text part"),
+                }
+                match &parts[1] {
+                    InterpPart::Expression(expr) => match expr {
+                        Expression::Identifier(id) => assert_eq!(id, "count"),
+                        _ => panic!("Expected Identifier expression"),
+                    },
+                    _ => panic!("Expected Expression part"),
+                }
+            }
+            _ => panic!("Expected InterpolatedString"),
+        },
+        _ => panic!("Expected VarAssign statement"),
+    }
+}
+
+#[test]
+fn test_parse_string_without_interpolation() {
+    // Plain strings without {} should remain as StringLiteral
+    let source = r#"template { let msg = "Hello, World!" }"#;
+    let tokens = lex(source);
+    let ast = parse(tokens);
+    let template = ast.template.unwrap();
+
+    match &template.statements[0] {
+        Statement::VarAssign { value, .. } => match value {
+            Expression::StringLiteral(s) => assert_eq!(s, "Hello, World!"),
+            _ => panic!("Expected StringLiteral for plain string, got {:?}", value),
+        },
+        _ => panic!("Expected VarAssign statement"),
+    }
 }

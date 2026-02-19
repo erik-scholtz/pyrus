@@ -1,6 +1,6 @@
 use core::panic;
 
-use crate::ast::{Ast, DocumentBlock, Expression, StyleBlock, TemplateBlock};
+use crate::ast::{Ast, DocumentBlock, Expression, InterpPart, StyleBlock, TemplateBlock};
 use crate::lexer::{TokenKind, TokenStream};
 
 pub fn parse(tokens: TokenStream) -> Ast {
@@ -86,7 +86,8 @@ impl Parser {
                 let value = self.current_text();
                 let trimmed = value.trim_matches('"').to_string();
                 self.advance();
-                Expression::StringLiteral(trimmed)
+                // Check if the string contains interpolation patterns
+                self.parse_string_with_interpolation(&trimmed)
             }
             TokenKind::Float => {
                 let value = self.current_text();
@@ -113,6 +114,116 @@ impl Parser {
                 self.current_token_col()
             ),
         }
+    }
+
+    fn parse_string_with_interpolation(&self, s: &str) -> Expression {
+        let mut parts = Vec::new();
+        let mut chars = s.chars().peekable();
+        let mut current_text = String::new();
+
+        while let Some(ch) = chars.next() {
+            if ch == '{' {
+                if chars.peek() == Some(&'{') {
+                    chars.next();
+                    current_text.push('{');
+                    continue;
+                }
+
+                if !current_text.is_empty() {
+                    parts.push(InterpPart::Text(current_text.clone()));
+                    current_text.clear();
+                }
+
+                let mut expr_str = String::new();
+                let mut brace_depth = 1;
+
+                while let Some(ch) = chars.next() {
+                    if ch == '{' {
+                        brace_depth += 1;
+                        expr_str.push(ch);
+                    } else if ch == '}' {
+                        brace_depth -= 1;
+                        if brace_depth == 0 {
+                            break;
+                        } else {
+                            expr_str.push(ch);
+                        }
+                    } else {
+                        expr_str.push(ch);
+                    }
+                }
+
+                let expr = self.parse_expression_from_str(&expr_str.trim());
+                parts.push(InterpPart::Expression(expr));
+            } else if ch == '}' {
+                if chars.peek() == Some(&'}') {
+                    chars.next(); // consume second }
+                    current_text.push('}');
+                } else {
+                    // Single } is just added to text (or could be an error)
+                    current_text.push(ch);
+                }
+            } else {
+                current_text.push(ch);
+            }
+        }
+
+        // Add remaining text
+        if !current_text.is_empty() {
+            parts.push(InterpPart::Text(current_text));
+        }
+
+        if parts.is_empty() {
+            Expression::StringLiteral(String::new())
+        } else if parts.len() == 1 {
+            match &parts[0] {
+                InterpPart::Text(text) => Expression::StringLiteral(text.clone()),
+                InterpPart::Expression(_) => Expression::InterpolatedString(parts),
+            }
+        } else {
+            Expression::InterpolatedString(parts)
+        }
+    }
+
+    fn parse_expression_from_str(&self, expr_str: &str) -> Expression {
+        let trimmed = expr_str.trim();
+        if trimmed.is_empty() {
+            return Expression::StringLiteral(String::new());
+        }
+        if let Ok(n) = trimmed.parse::<i64>() {
+            return Expression::Int(n);
+        }
+        if let Ok(f) = trimmed.parse::<f64>() {
+            return Expression::Float(f);
+        }
+        if trimmed.starts_with('"') && trimmed.ends_with('"') {
+            return Expression::StringLiteral(trimmed[1..trimmed.len() - 1].to_string());
+        }
+
+        for (op_pos, op_char) in trimmed.chars().enumerate() {
+            match op_char {
+                '+' | '-' | '*' | '/' | '=' => {
+                    let left = &trimmed[..op_pos];
+                    let right = &trimmed[op_pos + 1..];
+                    let operator = match op_char {
+                        '+' => crate::ast::BinaryOp::Add,
+                        '-' => crate::ast::BinaryOp::Subtract,
+                        '*' => crate::ast::BinaryOp::Multiply,
+                        '/' => crate::ast::BinaryOp::Divide,
+                        '=' => crate::ast::BinaryOp::Equals,
+                        _ => unreachable!(),
+                    };
+                    return Expression::Binary {
+                        left: Box::new(self.parse_expression_from_str(left.trim())),
+                        operator,
+                        right: Box::new(self.parse_expression_from_str(right.trim())),
+                    };
+                }
+                _ => {}
+            }
+        }
+
+        Expression::Identifier(trimmed.to_string())
     }
 
     fn parse_binary_expr(&mut self) -> Expression {

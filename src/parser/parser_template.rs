@@ -1,4 +1,4 @@
-use crate::ast::{Expression, Statement};
+use crate::ast::Statement;
 use crate::lexer::TokenKind;
 use crate::parser::parser::Parser;
 
@@ -32,13 +32,7 @@ impl Parser {
                 // TODO see if varname is in list of default variables here
                 self.advance();
                 self.expect(TokenKind::Equals);
-                let trimmed = self.current_text().trim_matches('"').to_string();
-                let expr = match trimmed {
-                    s if s.parse::<i64>().is_ok() => Expression::Int(s.parse().unwrap()),
-                    s if s.parse::<f64>().is_ok() => Expression::Float(s.parse().unwrap()),
-                    s => Expression::StringLiteral(s.to_string()),
-                };
-                self.advance();
+                let expr = self.parse_expression();
                 Statement::DefaultSet {
                     key: varname,
                     value: expr,

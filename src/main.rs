@@ -5,6 +5,7 @@ use std::time::Instant;
 
 use pyrus::hlir;
 use pyrus::hlir::resolve_styles;
+use pyrus::layout::setup_layout;
 use pyrus::lexer;
 use pyrus::parser;
 
@@ -60,6 +61,10 @@ fn main() {
     //         println!("  Style map: {:?}", node.computed.style);
     //     }
     // }
+
+    let layout = setup_layout(&mut hlir_module);
+    println!("Layout:");
+    println!("{:?}", layout);
 
     let now = Instant::now();
     let time = now - last;

@@ -95,7 +95,12 @@ impl HLIRPass {
                     args.push(id);
                 }
                 "string" => {
-                    let value = name.as_str().parse::<String>().unwrap();
+                    let value = name
+                        .as_str()
+                        .parse::<String>()
+                        .unwrap()
+                        .trim_matches('"')
+                        .to_string();
                     let id = ValueId(TryInto::<usize>::try_into(ir_body.ops.len()).unwrap());
                     let var_name = "raw_arg_".to_string() + id.to_string().as_str();
                     let var = self.assign_local(

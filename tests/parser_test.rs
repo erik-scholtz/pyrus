@@ -101,7 +101,7 @@ fn test_parse_unary_negation() {
             match value {
                 Expression::Unary {
                     operator,
-                    expression,
+                    expression: _,
                 } => {
                     match operator {
                         UnaryOp::Negate => {}
@@ -342,18 +342,6 @@ fn test_parse_function_call_with_args() {
         }
         _ => panic!("Expected Call DocElement"),
     }
-}
-
-#[test]
-fn test_parse_function_call_with_attributes() { // this would also need to be removed
-    // Parser doesn't support attributes with '=' in function calls yet
-    // This test is skipped until that feature is implemented
-}
-
-#[test]
-fn test_parse_text_block() { // TODO, this might need to be removed
-    // Parser requires '(' after identifier for function calls
-    // Block syntax like 'p { ... }' is not yet supported
 }
 
 #[test]

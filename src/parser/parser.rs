@@ -47,9 +47,6 @@ impl Parser {
                     self.expect(TokenKind::Style);
                     self.expect(TokenKind::LeftBrace);
                     let style_block = self.parse_style_block();
-                    // self.skip_optional_block();
-                    // let style_block = vec![];
-
                     style = Some(StyleBlock {
                         statements: style_block,
                     });
@@ -73,6 +70,7 @@ impl Parser {
 
     pub fn parse_expression(&mut self) -> Expression {
         match self.current_token_kind() {
+            // TODO handle binary operators (eventually)
             TokenKind::Minus => {
                 self.advance();
                 let right = self.parse_expression();
@@ -81,7 +79,14 @@ impl Parser {
                     expression: Box::new(right),
                 }
             }
-            // TODO handle not operator
+            TokenKind::Bang => {
+                self.advance();
+                let right = self.parse_expression();
+                Expression::Unary {
+                    operator: crate::ast::UnaryOp::Not,
+                    expression: Box::new(right),
+                }
+            }
             TokenKind::StringLiteral => {
                 let value = self.current_text();
                 let trimmed = value.trim_matches('"').to_string();
@@ -100,7 +105,6 @@ impl Parser {
                 Expression::Int(value.parse().unwrap())
             }
             TokenKind::Dollarsign => {
-                // TODO not sure if this is necessary anymore
                 self.advance(); // first $
                 let expression = self.parse_expression();
                 self.advance(); // other $

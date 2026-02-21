@@ -14,6 +14,7 @@ pub enum TokenKind {
     Dot,
     Semicolon,
     Colon,
+    Bang,
     Plus,
     Minus,
     Star,
@@ -106,6 +107,7 @@ static SYMBOL_LOOKUP_TABLE: [Option<TokenKind>; 256] = {
     t[b'=' as usize] = Some(Equals);
     t[b'$' as usize] = Some(Dollarsign);
     t[b'#' as usize] = Some(Hash);
+    t[b'!' as usize] = Some(Bang);
 
     t
 };

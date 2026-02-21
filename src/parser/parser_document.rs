@@ -24,7 +24,6 @@ impl Parser {
         elements
     }
 
-    // TODO handle nested structures properly
     // TODO handle text formatting properly
     // TODO handle markdown formatting properly (bold, italics, etc.)
     // TODO handle code snippets properly

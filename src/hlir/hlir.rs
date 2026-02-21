@@ -1,13 +1,5 @@
 use std::collections::HashMap;
 
-// TODO each element should have a style attribute ID, these IDs are saved
-// in a tree to show where they get overwritten by newer rules, solves
-// the "every object has attributes associated with it" and the
-// "how do I keep track of which attributes are inherited from parent elements"
-//
-// also could solve the HLIR doesnt need style attributes problem
-// this is for IR step
-
 use crate::ast::{Ast, DocElement, Expression, Statement};
 use crate::hlir::ir_types::{
     AttributeNode, AttributeTree, ElementMetadata, Func, FuncBlock, FuncId, GlobalId, HLIRModule,
@@ -58,7 +50,6 @@ impl HLIRPass {
     }
 
     fn lower_template_block(&mut self, hlirmodule: &mut HLIRModule) {
-        // TODO clean this up more using the let something = match {} pattern
         // all global, default and function declarations
         // handle defaults and globals inside this function call since they are small
         let _scope_index = self.symbol_table.len() - 1;
@@ -73,23 +64,25 @@ impl HLIRPass {
                         let global = self.assign_global(
                             "__".to_string() + &key.clone(),
                             value.clone(),
-                            global_id,
+                            Id::Global(global_id),
                         ); // TODO see if I can get rid of clone
-                        hlirmodule.globals.insert(global_id, global);
+                        hlirmodule.globals.insert(Id::Global(global_id), global);
                         self.add_symbol(key.clone(), Id::Global(global_id));
                     }
                     Statement::ConstAssign { name, value } => {
                         let global_id =
                             GlobalId(TryInto::<usize>::try_into(hlirmodule.globals.len()).unwrap());
-                        let global = self.assign_global(name.clone(), value.clone(), global_id); // TODO see if I can get rid of clone
-                        hlirmodule.globals.insert(global_id, global);
+                        let global =
+                            self.assign_global(name.clone(), value.clone(), Id::Global(global_id)); // TODO see if I can get rid of clone
+                        hlirmodule.globals.insert(Id::Global(global_id), global);
                         self.add_symbol(name.clone(), Id::Global(global_id));
                     }
                     Statement::VarAssign { name, value } => {
                         let global_id =
                             GlobalId(TryInto::<usize>::try_into(hlirmodule.globals.len()).unwrap());
-                        let global = self.assign_global(name.clone(), value.clone(), global_id); // TODO see if I can get rid of clone
-                        hlirmodule.globals.insert(global_id, global);
+                        let global =
+                            self.assign_global(name.clone(), value.clone(), Id::Global(global_id)); // TODO see if I can get rid of clone
+                        hlirmodule.globals.insert(Id::Global(global_id), global);
                         self.add_symbol(name.clone(), Id::Global(global_id));
                     }
                     Statement::FunctionDecl { name, args, body } => {
@@ -108,12 +101,12 @@ impl HLIRPass {
                         }
 
                         hlirmodule.functions.insert(
-                            func_id,
+                            Id::Func(func_id),
                             Func {
-                                id: func_id,
+                                id: Id::Func(func_id),
                                 name: name.clone(),
                                 args: arg_list,
-                                return_type: None, // TODO check return type before setting
+                                return_type: Some(Type::DocElement), // TODO check return type before setting (right now only DocElement)
                                 body: hlir_body,
                             },
                         );
@@ -127,7 +120,7 @@ impl HLIRPass {
     fn lower_document_block(&mut self, hlirmodule: &mut HLIRModule) {
         let mut ir_body = FuncBlock {
             ops: Vec::new(),
-            returned_element_ref: 0,
+            returned_element_ref: Some(0), // TODO this return type, magic number and I have a feeling that its wrong
         };
 
         self.symbol_table.push(HashMap::new()); // add new scope (document)
@@ -145,12 +138,12 @@ impl HLIRPass {
         }
         let func_id = FuncId(TryInto::<usize>::try_into(hlirmodule.functions.len()).unwrap());
         hlirmodule.functions.insert(
-            func_id,
+            Id::Func(func_id),
             Func {
-                id: func_id,
+                id: Id::Func(func_id),
                 name: "__document".to_string(),
                 args: Vec::new(),
-                return_type: None,
+                return_type: Some(Type::DocElement), // For right now only DocElements are supported TODO add in other types support later
                 body: ir_body,
             },
         );
@@ -293,7 +286,8 @@ impl HLIRPass {
     pub fn add_symbol(&mut self, name: String, id: Id) {
         for scope in self.symbol_table.iter_mut().rev() {
             if let Some(_symbol) = scope.get(&name) {
-                // TODO check if the the ids match, if there is a function defined with the same name as a variable then it should be ok or vice versa
+                // TODO check if the the id types match (Func/value/global), if there is a function defined with the same name as a variable then it should be ok or vice versa
+
                 panic!("Symbol {} already exists", name);
             }
         }

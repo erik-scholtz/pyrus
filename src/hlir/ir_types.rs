@@ -10,6 +10,7 @@ pub enum Type {
     Bool,
     String,
     Color,
+    DocElement,
 }
 
 #[derive(Debug, Clone)]
@@ -47,34 +48,28 @@ pub enum Id {
     Value(ValueId),
 }
 
-pub enum Value {
-    Literal(Literal),
-    Ref(ValueId),
-}
-
 #[derive(Debug, Clone)]
 pub enum Op {
     Const {
-        // TODO will probably need a table for internal reference where vars are used/called on instead of a name field
-        result: ValueId,
+        result: Id,
         literal: Literal,
         ty: Type,
     },
     Var {
-        result: ValueId,
+        result: Id,
         name: String,
         ty: Type,
     },
     Binary {
-        result: ValueId,
+        result: Id,
         op: BinOp,
-        lhs: ValueId,
-        rhs: ValueId,
+        lhs: Id,
+        rhs: Id,
     },
     Call {
-        result: Option<ValueId>,
+        result: Option<Id>,
         func: Id,
-        args: Vec<ValueId>, // see if this needs to be a CallArg struct
+        args: Vec<Id>,
     },
     Return {
         doc_element_ref: usize,
@@ -84,8 +79,8 @@ pub enum Op {
         attributes_ref: usize,
     },
     StringConcat {
-        result: ValueId,
-        parts: Vec<ValueId>,
+        result: Id,
+        parts: Vec<Id>,
     },
 }
 
@@ -102,14 +97,15 @@ pub enum BinOp {
 
 #[derive(Debug, Clone)]
 pub struct Global {
-    pub id: GlobalId,
+    pub id: Id,
     pub name: String,
     pub ty: Type,
     pub init: Literal,
 }
 
 pub struct Local {
-    pub id: ValueId,
+    // NOTE: potential use once template section has some more use
+    pub id: Id,
     pub ty: Type,
 }
 
@@ -117,7 +113,7 @@ pub struct Local {
 
 #[derive(Debug, Clone)]
 pub struct Func {
-    pub id: FuncId,
+    pub id: Id,
     pub name: String,
     pub args: Vec<Type>,
     pub return_type: Option<Type>,
@@ -127,7 +123,7 @@ pub struct Func {
 #[derive(Debug, Clone)]
 pub struct FuncBlock {
     pub ops: Vec<Op>,
-    pub returned_element_ref: usize,
+    pub returned_element_ref: Option<usize>,
 }
 
 // how template, document and style sections are handled
@@ -149,8 +145,8 @@ pub struct ElementMetadata {
 
 #[derive(Debug, Clone)]
 pub struct HLIRModule {
-    pub globals: HashMap<GlobalId, Global>, // TODO eventually remove IDs from actual struct and just refer to them (I think)
-    pub functions: HashMap<FuncId, Func>,
+    pub globals: HashMap<Id, Global>, // TODO eventually remove IDs from actual struct and just refer to them (I think)
+    pub functions: HashMap<Id, Func>,
     pub attributes: AttributeTree,
     pub css_rules: Vec<StyleRule>, // Parsed CSS rules (unapplied)
     pub elements: Vec<DocElement>,

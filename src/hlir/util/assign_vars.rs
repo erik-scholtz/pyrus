@@ -3,12 +3,7 @@ use crate::hlir::hlir::HLIRPass;
 use crate::hlir::ir_types::{Global, GlobalId, Id, Literal, Op, Type, ValueId};
 
 impl HLIRPass {
-    pub fn assign_global(
-        &mut self,
-        name: String,
-        value: crate::ast::Expression,
-        id: GlobalId,
-    ) -> Global {
+    pub fn assign_global(&mut self, name: String, value: crate::ast::Expression, id: Id) -> Global {
         let global = match value {
             crate::ast::Expression::StringLiteral(s) => Global {
                 id: id,
@@ -46,7 +41,7 @@ impl HLIRPass {
         global
     }
 
-    pub fn assign_local(&mut self, name: String, value: crate::ast::Expression, id: ValueId) -> Op {
+    pub fn assign_local(&mut self, name: String, value: crate::ast::Expression, id: Id) -> Op {
         let op = match value {
             crate::ast::Expression::StringLiteral(s) => Op::Const {
                 result: id,
@@ -81,7 +76,7 @@ impl HLIRPass {
         // add variable to symbol table
         let len = self.symbol_table.len();
         let scope = self.symbol_table.get_mut(len - 1).unwrap(); // most recent scope
-        scope.insert(name.clone(), Id::Value(id)); // add to known symbols
+        scope.insert(name.clone(), id); // add to known symbols
 
         op
     }

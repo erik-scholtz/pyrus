@@ -1,6 +1,6 @@
 use taffy::{NodeId, Style, TaffyTree};
 
-use crate::hlir::{Func, FuncId, HLIRModule, Literal, Op, StyleAttributes, Type};
+use crate::hlir::{Func, FuncId, HLIRModule, Id, Literal, Op, StyleAttributes, Type};
 
 pub fn setup_layout(hlir_module: &HLIRModule) -> LayoutEngine {
     // Implement layout setup logic here
@@ -29,7 +29,7 @@ impl LayoutEngine {
 
         let document = hlir_module
             .functions
-            .get(&document_id)
+            .get(&Id::Func(document_id))
             .expect("document function not found")
             .clone(); // panics if None TODO in the future have a defualt document type be created
 
@@ -54,7 +54,20 @@ impl LayoutEngine {
                         }
                     }
                 }
-                Op::Call { result, func, args } => {}
+                Op::Call { result, func, args } => {
+                    let function = hlir_module.functions.get(&func).unwrap(); // TODO handle None case
+                    let element_id = function.body.returned_element_ref.unwrap(); // TODO handle None case
+                    let element_item = hlir_module.elements[element_id].clone(); // TODO make sure that the attributes are taken from here
+                    let element = layout.tree.new_leaf(Style::default());
+                    match element {
+                        Ok(element) => {
+                            layout.tree.add_child(layout.root, element).unwrap();
+                        }
+                        Err(err) => {
+                            panic!("Failed to create element: {}", err);
+                        }
+                    }
+                }
                 _ => {}
             }
         }

@@ -231,7 +231,7 @@ pub struct DocumentBlock {
 
 #[derive(Debug, Clone)]
 pub struct StyleBlock {
-    pub statements: Vec<StyleRule>, // TODO style statements
+    pub statements: Vec<StyleRule>,
 }
 
 #[derive(Debug, Clone)]

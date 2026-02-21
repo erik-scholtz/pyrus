@@ -29,7 +29,6 @@ impl Parser {
         match self.current_token_kind() {
             TokenKind::Identifier => {
                 let varname = self.current_text();
-                // TODO see if varname is in list of default variables here
                 self.advance();
                 self.expect(TokenKind::Equals);
                 let expr = self.parse_expression();
@@ -40,7 +39,6 @@ impl Parser {
             }
             TokenKind::Let => {
                 self.advance();
-                // TODO handle let differently if needed
                 let varname = self.current_text();
                 self.advance();
                 self.expect(TokenKind::Equals);
@@ -52,7 +50,6 @@ impl Parser {
             }
             TokenKind::Const => {
                 self.advance();
-                // TODO handle const differently if needed
                 let varname = self.current_text();
                 self.advance();
                 self.expect(TokenKind::Equals);
@@ -64,10 +61,14 @@ impl Parser {
             }
             TokenKind::Return => {
                 self.advance(); // consume 'return'
-                // TODO see if there is a way to handle if a function call is from document or from template
-                let return_value = self.parse_document_element();
-                Statement::Return {
-                    doc_element: return_value,
+                match self.current_token_kind() {
+                    // TODO add the other types of return types later, for rigt now only returning DocElements
+                    _ => {
+                        let return_value = self.parse_document_element();
+                        Statement::Return {
+                            doc_element: return_value,
+                        }
+                    }
                 }
             }
             // TODO handle if statements
@@ -98,16 +99,16 @@ impl Parser {
     }
 
     fn parse_args(&mut self) -> Vec<crate::ast::FuncParam> {
-        // TODO rethink this at some point
         let mut params = Vec::new();
         loop {
+            // I dont really like the loop keyword, but I like warnings even less
             match self.current_token_kind() {
                 TokenKind::RightParen => break,
                 TokenKind::Identifier => {
                     let param_name = self.parse_expression();
                     self.expect(TokenKind::Colon);
                     let param_type = self.current_text();
-                    self.advance(); // TODO have a check here to make sure type is valid
+                    self.advance();
                     params.push(crate::ast::FuncParam {
                         ty: param_type,
                         value: param_name,

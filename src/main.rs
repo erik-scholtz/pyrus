@@ -3,6 +3,7 @@ use std::ffi::OsString;
 use std::fs;
 use std::time::Instant;
 
+use pyrus::backend;
 use pyrus::hlir;
 use pyrus::hlir::resolve_styles;
 use pyrus::layout::setup_layout;
@@ -84,6 +85,14 @@ fn main() {
                 computed.height
             );
         }
+    }
+
+    // Render to PDF using backend
+    let backend = backend::Backend::new(backend::Renderer::Pdf);
+    if let Err(e) = backend.render() {
+        eprintln!("Failed to render PDF: {}", e);
+    } else {
+        println!("\nPDF rendered successfully to generated/output.pdf");
     }
 
     let now = Instant::now();

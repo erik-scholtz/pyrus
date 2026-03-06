@@ -1,4 +1,5 @@
 use crate::backend::render::pdf::pdf_renderer::PdfRenderer;
+use crate::hlir::HLIRModule;
 
 pub enum Renderer {
     Pdf,
@@ -15,11 +16,11 @@ impl Backend {
         Self { renderer }
     }
 
-    pub fn render(&self) -> Result<(), std::io::Error> {
+    pub fn render(&self, hlir: HLIRModule) -> Result<(), std::io::Error> {
         match self.renderer {
             Renderer::Pdf => {
                 let renderer = PdfRenderer::new();
-                renderer.render()
+                renderer.render(hlir)
             }
             Renderer::Epub => todo!(),
             Renderer::Wasm => todo!(),

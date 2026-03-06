@@ -234,6 +234,7 @@ impl HLIRPass {
                 }
             }
             crate::ast::DocElement::List { items, attributes } => {
+                // TODO clean this part up, its not returning correct type in pdf generation
                 hlirmodule.elements.push(DocElement::List {
                     items: items.clone(),
                     attributes: attributes.clone(),

@@ -89,7 +89,7 @@ fn main() {
 
     // Render to PDF using backend
     let backend = backend::Backend::new(backend::Renderer::Pdf);
-    if let Err(e) = backend.render() {
+    if let Err(e) = backend.render(hlir_module) {
         eprintln!("Failed to render PDF: {}", e);
     } else {
         println!("\nPDF rendered successfully to generated/output.pdf");

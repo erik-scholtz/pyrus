@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::ast::{Ast, DocElement, Expression, Statement};
+use crate::ast::{Ast, Expression, Statement};
 use crate::hlir::ir_types::{
     AttributeNode, AttributeTree, ElementMetadata, Func, FuncBlock, FuncId, GlobalId, HLIRModule,
     HlirElement, Id, Op, Type,
@@ -22,7 +22,6 @@ pub struct HLIRPass {
 
 impl HLIRPass {
     // Methods for the Hlir struct
-
     fn lower(&mut self) -> HLIRModule {
         let mut hlirmodule = HLIRModule {
             globals: HashMap::new(),
@@ -36,13 +35,11 @@ impl HLIRPass {
         self.symbol_table.push(HashMap::new()); // add new scope (global)
 
         self.lower_template_block(&mut hlirmodule);
-
+        self.lower_document_block(&mut hlirmodule);
         // Store CSS rules from AST
         if let Some(style) = &self.ast.style {
             hlirmodule.css_rules = style.statements.clone();
         }
-
-        self.lower_document_block(&mut hlirmodule);
 
         self.symbol_table.pop(); // remove scope (global)
 
@@ -52,67 +49,59 @@ impl HLIRPass {
     fn lower_template_block(&mut self, hlirmodule: &mut HLIRModule) {
         // all global, default and function declarations
         // handle defaults and globals inside this function call since they are small
-        let _scope_index = self.symbol_table.len() - 1;
 
-        if let Some(template) = &self.ast.template {
-            let statements = template.statements.clone();
-            for statement in &statements {
-                match statement {
-                    Statement::DefaultSet { key, value } => {
-                        let global_id =
-                            GlobalId(TryInto::<usize>::try_into(hlirmodule.globals.len()).unwrap());
-                        let global = self.assign_global(
-                            "__".to_string() + &key.clone(),
-                            value.clone(),
-                            Id::Global(global_id),
-                        ); // TODO see if I can get rid of clone
-                        hlirmodule.globals.insert(Id::Global(global_id), global);
-                        self.add_symbol(key.clone(), Id::Global(global_id));
-                    }
-                    Statement::ConstAssign { name, value } => {
-                        let global_id =
-                            GlobalId(TryInto::<usize>::try_into(hlirmodule.globals.len()).unwrap());
-                        let global =
-                            self.assign_global(name.clone(), value.clone(), Id::Global(global_id)); // TODO see if I can get rid of clone
-                        hlirmodule.globals.insert(Id::Global(global_id), global);
-                        self.add_symbol(name.clone(), Id::Global(global_id));
-                    }
-                    Statement::VarAssign { name, value } => {
-                        let global_id =
-                            GlobalId(TryInto::<usize>::try_into(hlirmodule.globals.len()).unwrap());
-                        let global =
-                            self.assign_global(name.clone(), value.clone(), Id::Global(global_id)); // TODO see if I can get rid of clone
-                        hlirmodule.globals.insert(Id::Global(global_id), global);
-                        self.add_symbol(name.clone(), Id::Global(global_id));
-                    }
-                    Statement::FunctionDecl { name, args, body } => {
-                        let func_id =
-                            FuncId(TryInto::<usize>::try_into(hlirmodule.functions.len()).unwrap());
-                        let hlir_body = self.lower_function_block(body, hlirmodule);
-                        self.add_symbol(name.clone(), Id::Func(func_id)); // adds function name to symbol table
-                        let mut arg_list = Vec::new();
-                        for arg in args {
-                            match arg.ty.as_str() {
-                                "Int" => arg_list.push(Type::Int),
-                                "Float" => arg_list.push(Type::Float),
-                                "String" => arg_list.push(Type::String),
-                                _ => panic!("type not known"),
-                            }
-                        }
+        let Some(template) = &self.ast.template else {
+            return;
+        };
 
-                        hlirmodule.functions.insert(
-                            Id::Func(func_id),
-                            Func {
-                                id: Id::Func(func_id),
-                                name: name.clone(),
-                                args: arg_list,
-                                return_type: Some(Type::DocElement), // TODO check return type before setting (right now only DocElement)
-                                body: hlir_body,
-                            },
-                        );
-                    }
-                    _ => {}
+        let statements = template.statements.clone();
+        for statement in &statements {
+            match statement {
+                Statement::DefaultSet { key, value } => {
+                    let global_id = Id::Global(GlobalId(hlirmodule.globals.len()));
+                    let global_name = "__".to_string() + &key.clone();
+                    let global = self.assign_global(&global_name, &value, global_id, false);
+                    hlirmodule.globals.insert(global_id, global);
+                    self.add_symbol(key.clone(), global_id);
                 }
+                Statement::ConstAssign { name, value } => {
+                    let global_id = Id::Global(GlobalId(hlirmodule.globals.len()));
+                    let global = self.assign_global(&name, &value, global_id, false);
+                    hlirmodule.globals.insert(global_id, global);
+                    self.add_symbol(name.clone(), global_id);
+                }
+                Statement::VarAssign { name, value } => {
+                    let global_id = Id::Global(GlobalId(hlirmodule.globals.len()));
+                    let global = self.assign_global(&name, &value, global_id, true);
+                    hlirmodule.globals.insert(global_id, global);
+                    self.add_symbol(name.clone(), global_id);
+                }
+                Statement::FunctionDecl { name, args, body } => {
+                    let func_id = FuncId(hlirmodule.functions.len());
+                    let hlir_body = self.lower_function_block(body, hlirmodule);
+                    self.add_symbol(name.clone(), Id::Func(func_id)); // adds function name to symbol table
+                    let mut arg_list = Vec::new();
+                    for arg in args {
+                        match arg.ty.as_str() {
+                            "Int" => arg_list.push(Type::Int),
+                            "Float" => arg_list.push(Type::Float),
+                            "String" => arg_list.push(Type::String),
+                            _ => panic!("type not known"),
+                        }
+                    }
+
+                    hlirmodule.functions.insert(
+                        Id::Func(func_id),
+                        Func {
+                            id: Id::Func(func_id),
+                            name: name.clone(),
+                            args: arg_list,
+                            return_type: Some(Type::DocElement), // TODO check return type before setting (right now only DocElement)
+                            body: hlir_body,
+                        },
+                    );
+                }
+                _ => {}
             }
         }
     }
@@ -120,7 +109,7 @@ impl HLIRPass {
     fn lower_document_block(&mut self, hlirmodule: &mut HLIRModule) {
         let mut ir_body = FuncBlock {
             ops: Vec::new(),
-            returned_element_ref: Some(0), // TODO this return type, magic number and I have a feeling that its wrong
+            returned_element_ref: None,
         };
 
         self.symbol_table.push(HashMap::new()); // add new scope (document)
@@ -174,7 +163,7 @@ impl HLIRPass {
                 });
                 // Call ops don't need to return an index - they handle element emission separately
                 // The returned_element_ref in the function body is used instead
-                0
+                0 // TODO magic number
             }
             crate::ast::DocElement::Text {
                 content,

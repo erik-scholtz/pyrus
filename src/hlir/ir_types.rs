@@ -100,6 +100,7 @@ pub struct Global {
     pub name: String,
     pub ty: Type,
     pub init: Literal,
+    pub mutable: bool,
 }
 
 pub struct Local {

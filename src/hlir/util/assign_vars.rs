@@ -3,25 +3,34 @@ use crate::hlir::hlir::HLIRPass;
 use crate::hlir::ir_types::{Global, GlobalId, Id, Literal, Op, Type, ValueId};
 
 impl HLIRPass {
-    pub fn assign_global(&mut self, name: String, value: crate::ast::Expression, id: Id) -> Global {
+    pub fn assign_global(
+        &mut self,
+        name: &String,
+        value: &crate::ast::Expression,
+        id: Id,
+        mutable: bool,
+    ) -> Global {
         let global = match value {
             crate::ast::Expression::StringLiteral(s) => Global {
                 id: id,
                 name: name.clone(),
                 ty: Type::String,
                 init: Literal::String(s.clone()),
+                mutable: mutable,
             },
             crate::ast::Expression::Int(n) => Global {
                 id: id,
                 name: name.clone(),
                 ty: Type::Int,
-                init: Literal::Int(n),
+                init: Literal::Int(*n),
+                mutable: mutable,
             },
             crate::ast::Expression::Float(n) => Global {
                 id: id,
                 name: name.clone(),
                 ty: Type::Float,
-                init: Literal::Float(n),
+                init: Literal::Float(*n),
+                mutable: mutable,
             },
             crate::ast::Expression::InterpolatedString(parts) => {
                 // For globals with interpolated strings, we evaluate at initialization time
@@ -32,6 +41,7 @@ impl HLIRPass {
                     name: name.clone(),
                     ty: Type::String,
                     init: result,
+                    mutable: mutable,
                 }
             }
             _ => {
@@ -41,7 +51,13 @@ impl HLIRPass {
         global
     }
 
-    pub fn assign_local(&mut self, name: String, value: crate::ast::Expression, id: Id) -> Op {
+    pub fn assign_local(
+        &mut self,
+        name: String,
+        value: crate::ast::Expression,
+        id: Id,
+        mutable: bool,
+    ) -> Op {
         let op = match value {
             crate::ast::Expression::StringLiteral(s) => Op::Const {
                 result: id,

@@ -21,11 +21,18 @@ impl HLIRPass {
         for stmt in body {
             match stmt {
                 crate::ast::Statement::ConstAssign { name, value } => {
-                    let id = ValueId(TryInto::<usize>::try_into(ir_body.ops.len()).unwrap());
-                    let value = self.assign_local(name.clone(), value.clone(), Id::Value(id));
+                    let id = Id::Value(ValueId(ir_body.ops.len()));
+                    let value = self.assign_local(name.clone(), value.clone(), id, false);
                     ir_body.ops.push(value);
-                    self.add_symbol(name.clone(), Id::Value(id));
+                    self.add_symbol(name.clone(), id);
                 }
+                crate::ast::Statement::VarAssign { name, value } => {
+                    let id = Id::Value(ValueId(ir_body.ops.len()));
+                    let value = self.assign_local(name.clone(), value.clone(), id, true);
+                    ir_body.ops.push(value);
+                    self.add_symbol(name.clone(), id);
+                }
+
                 crate::ast::Statement::Return { doc_element } => {
                     let hlir_element = self.convert_doc_element_to_hlir(doc_element, hlirmodule);
                     hlirmodule.elements.push(hlir_element);
@@ -71,24 +78,26 @@ impl HLIRPass {
                 }
                 "int" => {
                     let value = name.as_str().parse::<i64>().unwrap();
-                    let id = ValueId(TryInto::<usize>::try_into(ir_body.ops.len()).unwrap());
+                    let id = ValueId(ir_body.ops.len());
                     let var_name = "raw_arg_".to_string() + id.to_string().as_str();
                     let var = self.assign_local(
                         var_name.clone(),
                         crate::ast::Expression::Int(value),
                         Id::Value(id),
+                        false,
                     );
                     ir_body.ops.push(var);
                     args.push(Id::Value(id));
                 }
                 "float" => {
                     let value = name.as_str().parse::<f64>().unwrap();
-                    let id = ValueId(TryInto::<usize>::try_into(ir_body.ops.len()).unwrap());
+                    let id = ValueId(ir_body.ops.len());
                     let var_name = "raw_arg_".to_string() + id.to_string().as_str();
                     let var = self.assign_local(
                         var_name.clone(),
                         crate::ast::Expression::Float(value),
                         Id::Value(id),
+                        false,
                     );
                     ir_body.ops.push(var);
                     args.push(Id::Value(id));
@@ -100,12 +109,13 @@ impl HLIRPass {
                         .unwrap()
                         .trim_matches('"')
                         .to_string();
-                    let id = ValueId(TryInto::<usize>::try_into(ir_body.ops.len()).unwrap());
+                    let id = ValueId(ir_body.ops.len());
                     let var_name = "raw_arg_".to_string() + id.to_string().as_str();
                     let var = self.assign_local(
                         var_name.clone(),
                         crate::ast::Expression::StringLiteral(value),
                         Id::Value(id),
+                        false,
                     );
                     ir_body.ops.push(var);
                     args.push(Id::Value(id));

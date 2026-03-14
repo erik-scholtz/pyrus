@@ -21,6 +21,8 @@ pub enum TokenKind {
     Equals,
     Dollarsign,
     Hash,
+    Greater,
+    Less,
 
     // Literals
     Identifier,
@@ -41,6 +43,7 @@ pub enum TokenKind {
     Func,
     Let,
     Const,
+    Var,
     If,
     Else,
     For,

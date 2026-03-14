@@ -7,6 +7,7 @@ static KEYWORD_TABLE: phf::Map<&'static str, TokenKind> = phf::phf_map! {
     "func" => TokenKind::Func,
     "let" => TokenKind::Let,
     "const" => TokenKind::Const,
+    "var" => TokenKind::Var,
     "if" => TokenKind::If,
     "else" => TokenKind::Else,
     "for" => TokenKind::For,
@@ -44,6 +45,7 @@ static SYMBOL_LOOKUP_TABLE: [Option<TokenKind>; 256] = {
     t[b'$' as usize] = Some(Dollarsign);
     t[b'#' as usize] = Some(Hash);
     t[b'!' as usize] = Some(Bang);
+    t[b'>' as usize] = Some(Greater);
 
     t
 };
@@ -55,6 +57,14 @@ pub struct TokenStream {
     pub lines: Vec<u32>,
     pub cols: Vec<u32>,
     pub source: String,
+    pub errors: Vec<LexError>,
+}
+
+#[derive(Debug, Clone)]
+pub struct LexError {
+    pub message: String,
+    pub line: u32,
+    pub col: u32,
 }
 
 impl TokenStream {
@@ -65,6 +75,7 @@ impl TokenStream {
             lines: Vec::new(),
             cols: Vec::new(),
             source,
+            errors: Vec::new(),
         }
     }
 
@@ -161,6 +172,8 @@ pub fn lex(source: &str) -> TokenStream {
         if c == b'"' {
             i += 1; // skip opening quote
             let mut escaped = false;
+            let string_start_line = line;
+            let string_start_col = col;
             while i < len {
                 if escaped {
                     escaped = false;
@@ -169,10 +182,25 @@ pub fn lex(source: &str) -> TokenStream {
                 } else if bytes[i] == b'\\' {
                     escaped = true;
                 }
+                // Track newlines inside strings for error reporting
+                if bytes[i] == b'\n' {
+                    line += 1;
+                    col = 1;
+                } else {
+                    col += 1;
+                }
                 i += 1;
             }
-            if i < len {
+            if i >= len {
+                // Unterminated string
+                out.errors.push(LexError {
+                    message: "Unterminated string literal".to_string(),
+                    line: string_start_line,
+                    col: string_start_col,
+                });
+            } else {
                 i += 1; // Skip closing quote
+                col += 1;
             }
             out.push(TokenKind::StringLiteral, start, i, line, col);
             col += (i - start) as u32;

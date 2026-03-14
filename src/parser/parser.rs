@@ -89,10 +89,9 @@ impl Parser {
             }
             TokenKind::StringLiteral => {
                 let value = self.current_text();
-                let trimmed = value.trim_matches('"').to_string();
                 self.advance();
                 // Check if the string contains interpolation patterns
-                self.parse_string_with_interpolation(&trimmed)
+                self.parse_string_with_interpolation(&value)
             }
             TokenKind::Float => {
                 let value = self.current_text();
@@ -121,8 +120,15 @@ impl Parser {
     }
 
     fn parse_string_with_interpolation(&self, s: &str) -> Expression {
+        // Strip surrounding quotes if present
+        let content = if s.len() >= 2 && s.starts_with('"') && s.ends_with('"') {
+            &s[1..s.len() - 1]
+        } else {
+            s
+        };
+
         let mut parts = Vec::new();
-        let mut chars = s.chars().peekable();
+        let mut chars = content.chars().peekable();
         let mut current_text = String::new();
 
         while let Some(ch) = chars.next() {
@@ -167,6 +173,26 @@ impl Parser {
                     // Single } is just added to text (or could be an error)
                     current_text.push(ch);
                 }
+            } else if ch == '\\' {
+                // Handle escape sequences
+                if let Some(next_ch) = chars.next() {
+                    match next_ch {
+                        'n' => current_text.push('\n'),
+                        't' => current_text.push('\t'),
+                        'r' => current_text.push('\r'),
+                        '\\' => current_text.push('\\'),
+                        '"' => current_text.push('"'),
+                        '{' => current_text.push('{'),
+                        '}' => current_text.push('}'),
+                        _ => {
+                            // Unknown escape - keep both characters
+                            current_text.push('\\');
+                            current_text.push(next_ch);
+                        }
+                    }
+                } else {
+                    current_text.push('\\');
+                }
             } else {
                 current_text.push(ch);
             }
@@ -199,9 +225,6 @@ impl Parser {
         }
         if let Ok(f) = trimmed.parse::<f64>() {
             return Expression::Float(f);
-        }
-        if trimmed.starts_with('"') && trimmed.ends_with('"') {
-            return Expression::StringLiteral(trimmed[1..trimmed.len() - 1].to_string());
         }
 
         for (op_pos, op_char) in trimmed.chars().enumerate() {

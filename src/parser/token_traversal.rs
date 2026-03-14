@@ -47,6 +47,14 @@ impl Parser {
         false
     }
 
+    pub fn peek(&self) -> Option<TokenKind> {
+        if self.idx + 1 < self.toks.kinds.len() {
+            Some(self.toks.kinds[self.idx + 1])
+        } else {
+            None
+        }
+    }
+
     /// If a block `{ ... }` follows, skip it including nested braces.
     pub fn skip_optional_block(&mut self) {
         // skip optional whitespace-free tokens; if next is LeftBrace, skip until matching RightBrace

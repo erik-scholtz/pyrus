@@ -244,6 +244,40 @@ fn test_parse_string_literal() {
 }
 
 #[test]
+fn test_parse_string_with_escaped_quote() {
+    let source = r#"template { let msg = "foo\"bar" }"#;
+    let tokens = lex(source);
+    let ast = parse(tokens);
+    let template = ast.template.unwrap();
+
+    match &template.statements[0] {
+        Statement::VarAssign { value, .. } => match value {
+            Expression::StringLiteral(s) => assert_eq!(
+                s, "foo\"bar",
+                "Escaped quote should be preserved as literal quote"
+            ),
+            _ => panic!("Expected StringLiteral expression, got {:?}", value),
+        },
+        _ => panic!("Expected VarAssign statement"),
+    }
+}
+
+#[test]
+fn test_lex_unterminated_string() {
+    let source = r#"template { let msg = "unterminated }"#;
+    let tokens = lex(source);
+
+    assert!(
+        !tokens.errors.is_empty(),
+        "Should report error for unterminated string"
+    );
+    assert_eq!(
+        tokens.errors[0].message, "Unterminated string literal",
+        "Error message should indicate unterminated string"
+    );
+}
+
+#[test]
 fn test_parse_integer_literal() {
     let source = "template { let num = 42 }";
     let tokens = lex(source);

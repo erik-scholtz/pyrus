@@ -59,6 +59,17 @@ impl Parser {
                     value: expr,
                 }
             }
+            TokenKind::Var => {
+                self.advance();
+                let varname = self.current_text();
+                self.advance();
+                self.expect(TokenKind::Equals);
+                let expr = self.parse_expression();
+                Statement::VarAssign {
+                    name: varname,
+                    value: expr,
+                }
+            }
             TokenKind::Return => {
                 self.advance(); // consume 'return'
                 match self.current_token_kind() {
@@ -91,6 +102,15 @@ impl Parser {
 
         self.expect(TokenKind::LeftParen);
         let args = self.parse_args();
+
+        // Optional return type annotation: -> Type
+        if self.current_token_kind() == TokenKind::Minus && self.peek() == Some(TokenKind::Greater)
+        {
+            self.advance(); // consume -
+            self.advance(); // consume >
+            let _return_type = self.current_text(); // consume type name
+            self.advance();
+        }
 
         self.expect(TokenKind::LeftBrace);
         let body = self.parse_func_decl_body();
